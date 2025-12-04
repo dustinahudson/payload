@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import type React from 'react'
 import type { DeepUndefinable, MarkRequired } from 'ts-essentials'
 
+import type { BlocksFieldDrawerClientComponent } from '../../admin/fields/Blocks.js'
 import type {
   JoinFieldClientProps,
   JoinFieldErrorClientComponent,
@@ -1539,6 +1540,7 @@ export type BlocksField = {
     components?: {
       afterInput?: CustomComponent[]
       beforeInput?: CustomComponent[]
+      Drawer?: CustomComponent<BlocksFieldDrawerClientComponent>
       Error?: CustomComponent<BlocksFieldErrorClientComponent | BlocksFieldErrorServerComponent>
       Label?: CustomComponent<BlocksFieldLabelClientComponent | BlocksFieldLabelServerComponent>
     } & FieldAdmin['components']

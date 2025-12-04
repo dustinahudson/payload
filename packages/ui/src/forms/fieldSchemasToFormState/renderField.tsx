@@ -8,7 +8,7 @@ import type {
 
 import { getTranslation } from '@payloadcms/translations'
 import { createClientField, MissingEditorProp } from 'payload'
-import { fieldIsHiddenOrDisabled } from 'payload/shared'
+import { fieldIsHiddenOrDisabled, getFromImportMap, isPlainObject } from 'payload/shared'
 
 import type { RenderFieldMethod } from './types.js'
 
@@ -389,6 +389,21 @@ export const renderField: RenderFieldMethod = ({
               serverProps,
             })
           : 'Mock'
+      }
+
+      if ('Drawer' in fieldConfig.admin.components) {
+        // Drawer component needs to be resolved from import map and passed as a function reference
+        // because it receives dynamic props (addRow, blocks, etc.) at runtime in the client component
+        const DrawerComponent = fieldConfig.admin.components.Drawer
+        if (typeof DrawerComponent === 'string' || isPlainObject(DrawerComponent)) {
+          fieldState.customComponents.Drawer = getFromImportMap<React.ComponentType>({
+            importMap: req.payload.importMap,
+            PayloadComponent: DrawerComponent,
+            schemaPath: '',
+          }) as unknown as React.ReactNode
+        } else if (typeof DrawerComponent === 'function') {
+          fieldState.customComponents.Drawer = DrawerComponent as unknown as React.ReactNode
+        }
       }
 
       if ('Field' in fieldConfig.admin.components) {
