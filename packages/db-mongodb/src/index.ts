@@ -192,6 +192,11 @@ export type MongooseAdapter = {
   }
   connection: Connection
   ensureIndexes: boolean
+  /**
+   * Global block Mongoose schemas
+   * Stores pre-built MongoDB schemas for blocks defined in config.blocks
+   */
+  globalBlockSchemas: Map<string, mongoose.Schema>
   globals: GlobalModel
   mongoMemoryServer: MongoMemoryReplSet
   prodMigrations?: {
@@ -219,6 +224,11 @@ declare module 'payload' {
     }
     connection: Connection
     ensureIndexes: boolean
+    /**
+     * Global block Mongoose schemas
+     * Stores pre-built MongoDB schemas for blocks defined in config.blocks
+     */
+    globalBlockSchemas: Map<string, mongoose.Schema>
     globals: GlobalModel
     mongoMemoryServer: MongoMemoryReplSet
     prodMigrations?: {
@@ -291,6 +301,7 @@ export function mongooseAdapter({
       connectOptions: connectOptions || {},
       disableIndexHints,
       ensureIndexes,
+      globalBlockSchemas: new Map(),
       // @ts-expect-error don't have globals model yet
       globals: undefined,
       // @ts-expect-error Should not be required

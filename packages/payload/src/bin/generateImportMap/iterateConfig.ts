@@ -36,18 +36,15 @@ export function iterateConfig({
     imports,
   })
 
-  if (config?.blocks) {
-    const blocks = Object.values(config.blocks)
-    if (blocks?.length) {
-      genImportMapIterateFields({
-        addToImportMap,
-        baseDir,
-        config,
-        fields: blocks,
-        importMap,
-        imports,
-      })
-    }
+  if (config?.blocks?.length) {
+    genImportMapIterateFields({
+      addToImportMap,
+      baseDir,
+      config,
+      fields: config.blocks,
+      importMap,
+      imports,
+    })
   }
 
   if (typeof config.admin?.avatar === 'object') {

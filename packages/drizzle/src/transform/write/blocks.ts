@@ -65,9 +65,14 @@ export const transformBlocks = ({
       return
     }
 
+    const blocksToSearch =
+      field.blockReferences === 'GlobalBlocks'
+        ? (adapter.payload.config.blocks ?? [])
+        : (field.blockReferences ?? field.blocks)
+
     const matchedBlock =
       adapter.payload.blocks[blockRow.blockType] ??
-      ((field.blockReferences ?? field.blocks).find(
+      (blocksToSearch.find(
         (block) => typeof block !== 'string' && block.slug === blockRow.blockType,
       ) as FlattenedBlock | undefined)
 

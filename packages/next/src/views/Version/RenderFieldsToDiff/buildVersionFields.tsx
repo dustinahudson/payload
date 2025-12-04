@@ -444,9 +444,14 @@ const buildVersionField = ({
       const toRow = (Array.isArray(valueTo) && valueTo?.[i]) || {}
 
       const blockSlugToMatch: string = toRow?.blockType ?? fromRow?.blockType
+      const blocksToSearch =
+        field.blockReferences === 'GlobalBlocks'
+          ? (req.payload.config.blocks ?? [])
+          : (field.blockReferences ?? field.blocks)
+
       const toBlock =
         req.payload.blocks[blockSlugToMatch] ??
-        ((field.blockReferences ?? field.blocks).find(
+        (blocksToSearch.find(
           (block) => typeof block !== 'string' && block.slug === blockSlugToMatch,
         ) as FlattenedBlock | undefined)
 
@@ -459,7 +464,7 @@ const buildVersionField = ({
 
         const fromBlock =
           req.payload.blocks[fromBlockSlugToMatch] ??
-          ((field.blockReferences ?? field.blocks).find(
+          (blocksToSearch.find(
             (block) => typeof block !== 'string' && block.slug === fromBlockSlugToMatch,
           ) as FlattenedBlock | undefined)
 

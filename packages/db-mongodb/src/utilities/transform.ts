@@ -363,16 +363,24 @@ const stripFields = ({
                 let maybeBlock: FlattenedBlock | undefined = undefined
 
                 if (field.blockReferences) {
-                  const maybeBlockReference = field.blockReferences.find((each) => {
-                    const slug = typeof each === 'string' ? each : each.slug
-                    return slug === data.blockType
-                  })
+                  // Handle blockReferences which can be 'GlobalBlocks' or an array
+                  if (field.blockReferences === 'GlobalBlocks') {
+                    // Search in all global blocks
+                    maybeBlock = config.blocks?.find((each) => each.slug === data.blockType)
+                  } else if (Array.isArray(field.blockReferences)) {
+                    const maybeBlockReference = field.blockReferences.find((each) => {
+                      const slug = typeof each === 'string' ? each : each.slug
+                      return slug === data.blockType
+                    })
 
-                  if (maybeBlockReference) {
-                    if (typeof maybeBlockReference === 'object') {
-                      maybeBlock = maybeBlockReference
-                    } else {
-                      maybeBlock = config.blocks?.find((each) => each.slug === maybeBlockReference)
+                    if (maybeBlockReference) {
+                      if (typeof maybeBlockReference === 'object') {
+                        maybeBlock = maybeBlockReference
+                      } else {
+                        maybeBlock = config.blocks?.find(
+                          (each) => each.slug === maybeBlockReference,
+                        )
+                      }
                     }
                   }
                 }
@@ -437,16 +445,22 @@ const stripFields = ({
             let maybeBlock: FlattenedBlock | undefined = undefined
 
             if (field.blockReferences) {
-              const maybeBlockReference = field.blockReferences.find((each) => {
-                const slug = typeof each === 'string' ? each : each.slug
-                return slug === data.blockType
-              })
+              // Handle blockReferences which can be 'GlobalBlocks' or an array
+              if (field.blockReferences === 'GlobalBlocks') {
+                // Search in all global blocks
+                maybeBlock = config.blocks?.find((each) => each.slug === data.blockType)
+              } else if (Array.isArray(field.blockReferences)) {
+                const maybeBlockReference = field.blockReferences.find((each) => {
+                  const slug = typeof each === 'string' ? each : each.slug
+                  return slug === data.blockType
+                })
 
-              if (maybeBlockReference) {
-                if (typeof maybeBlockReference === 'object') {
-                  maybeBlock = maybeBlockReference
-                } else {
-                  maybeBlock = config.blocks?.find((each) => each.slug === maybeBlockReference)
+                if (maybeBlockReference) {
+                  if (typeof maybeBlockReference === 'object') {
+                    maybeBlock = maybeBlockReference
+                  } else {
+                    maybeBlock = config.blocks?.find((each) => each.slug === maybeBlockReference)
+                  }
                 }
               }
             }

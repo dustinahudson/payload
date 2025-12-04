@@ -383,7 +383,12 @@ export const traverseFields = ({
 
         const disableNotNullFromHere = Boolean(field.admin?.condition) || disableNotNull
 
-        ;(field.blockReferences ?? field.blocks).forEach((_block) => {
+        const blocksToProcess =
+          field.blockReferences === 'GlobalBlocks'
+            ? (adapter.payload.config.blocks ?? [])
+            : (field.blockReferences ?? field.blocks)
+
+        blocksToProcess.forEach((_block) => {
           const block = typeof _block === 'string' ? adapter.payload.blocks[_block] : _block
 
           let blockTableName = createTableName({

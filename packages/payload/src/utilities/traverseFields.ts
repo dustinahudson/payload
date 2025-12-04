@@ -71,12 +71,22 @@ const traverseArrayOrBlocksField = ({
     let fields!: Field[]
     if (field.type === 'blocks' && typeof ref?.blockType === 'string') {
       // TODO: iterate over blocks mapped to block slug in v4, or pass through payload.blocks
-      const block = field.blockReferences
-        ? ((config?.blocks?.find((b) => b.slug === ref.blockType) ??
-            field.blockReferences.find(
-              (b) => typeof b !== 'string' && b.slug === ref.blockType,
-            )) as Block)
-        : field.blocks.find((b) => b.slug === ref.blockType)
+      let block: Block | undefined
+
+      if (field.blockReferences) {
+        // Check global blocks first
+        block = config?.blocks?.find((b) => b.slug === ref.blockType)
+
+        // If not found in global blocks and blockReferences is an array, check inline blocks
+        if (!block && Array.isArray(field.blockReferences)) {
+          block = field.blockReferences.find(
+            (b) => typeof b !== 'string' && b.slug === ref.blockType,
+          ) as Block | undefined
+        }
+      } else {
+        // Use inline blocks
+        block = field.blocks.find((b) => b.slug === ref.blockType)
+      }
 
       fields = block?.fields as Field[]
     } else if (field.type === 'array') {

@@ -11,6 +11,7 @@ import type {
 
 import {
   DuplicateFieldName,
+  InvalidConfiguration,
   InvalidFieldName,
   InvalidFieldRelationship,
   MissingFieldType,
@@ -37,6 +38,7 @@ describe('sanitizeFields', () => {
         config,
         collectionConfig,
         fields,
+        parentIsLocalized: false,
         validRelationships: [],
       })
     }).rejects.toThrow(MissingFieldType)
@@ -56,6 +58,7 @@ describe('sanitizeFields', () => {
         config,
         collectionConfig,
         fields,
+        parentIsLocalized: false,
         validRelationships: [],
       })
     }).rejects.toThrow(InvalidFieldName)
@@ -80,6 +83,7 @@ describe('sanitizeFields', () => {
         config,
         collectionConfig,
         fields,
+        parentIsLocalized: false,
         validRelationships: [],
       })
     }).rejects.toThrow(DuplicateFieldName)
@@ -118,6 +122,7 @@ describe('sanitizeFields', () => {
         config,
         collectionConfig,
         fields,
+        parentIsLocalized: false,
         validRelationships: [],
       })
     }).rejects.toThrow(DuplicateFieldName)
@@ -137,6 +142,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as TextField
@@ -160,6 +166,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as TextField
@@ -184,6 +191,7 @@ describe('sanitizeFields', () => {
             config,
             collectionConfig,
             fields,
+            parentIsLocalized: false,
             validRelationships: [],
           })
         )[0] as TextField
@@ -211,6 +219,7 @@ describe('sanitizeFields', () => {
             config,
             collectionConfig,
             fields: [arrayField],
+            parentIsLocalized: false,
             validRelationships: [],
           })
         )[0] as ArrayField
@@ -246,6 +255,7 @@ describe('sanitizeFields', () => {
             config,
             collectionConfig,
             fields,
+            parentIsLocalized: false,
             validRelationships: [],
           })
         )[0] as BlocksField
@@ -276,6 +286,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as ArrayField
@@ -305,6 +316,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as BlocksField
@@ -334,7 +346,13 @@ describe('sanitizeFields', () => {
       ]
 
       await expect(async () => {
-        await sanitizeFields({ config, collectionConfig, fields, validRelationships })
+        await sanitizeFields({
+          config,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships,
+        })
       }).not.toThrow()
     })
 
@@ -350,7 +368,13 @@ describe('sanitizeFields', () => {
       ]
 
       await expect(async () => {
-        await sanitizeFields({ config, collectionConfig, fields, validRelationships })
+        await sanitizeFields({
+          config,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships,
+        })
       }).not.toThrow()
     })
 
@@ -378,7 +402,13 @@ describe('sanitizeFields', () => {
       ]
 
       await expect(async () => {
-        await sanitizeFields({ config, collectionConfig, fields, validRelationships })
+        await sanitizeFields({
+          config,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships,
+        })
       }).not.toThrow()
     })
 
@@ -394,7 +424,13 @@ describe('sanitizeFields', () => {
       ]
 
       await expect(async () => {
-        await sanitizeFields({ config, collectionConfig, fields, validRelationships })
+        await sanitizeFields({
+          config,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships,
+        })
       }).rejects.toThrow(InvalidFieldRelationship)
     })
 
@@ -410,7 +446,13 @@ describe('sanitizeFields', () => {
       ]
 
       await expect(async () => {
-        await sanitizeFields({ config, collectionConfig, fields, validRelationships })
+        await sanitizeFields({
+          config,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships,
+        })
       }).rejects.toThrow(InvalidFieldRelationship)
     })
 
@@ -438,7 +480,13 @@ describe('sanitizeFields', () => {
       ]
 
       await expect(async () => {
-        await sanitizeFields({ config, collectionConfig, fields, validRelationships })
+        await sanitizeFields({
+          config,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships,
+        })
       }).rejects.toThrow(InvalidFieldRelationship)
     })
 
@@ -516,6 +564,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as CheckboxField
@@ -528,6 +577,7 @@ describe('sanitizeFields', () => {
         config,
         collectionConfig,
         fields: [],
+        parentIsLocalized: false,
         validRelationships: [],
       })
 
@@ -563,6 +613,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as BlocksField
@@ -596,6 +647,7 @@ describe('sanitizeFields', () => {
           config,
           collectionConfig,
           fields,
+          parentIsLocalized: false,
           validRelationships: [],
         })
       )[0] as BlocksField
@@ -603,6 +655,200 @@ describe('sanitizeFields', () => {
       const sanitizedBlock = sanitizedField.blocks[0]
 
       expect(sanitizedBlock.admin?.disableBlockName).toStrictEqual(undefined)
+    })
+  })
+
+  describe('blockReferences validation', () => {
+    it('should throw on invalid block slug reference', async () => {
+      const configWithBlocks = {
+        blocks: [
+          {
+            slug: 'validBlock',
+            fields: [
+              {
+                name: 'content',
+                type: 'text',
+              },
+            ],
+          },
+        ],
+      } as Config
+
+      const fields: Field[] = [
+        {
+          name: 'content',
+          type: 'blocks',
+          blocks: [],
+          blockReferences: ['validBlock', 'invalidBlock'],
+        },
+      ]
+
+      await expect(async () => {
+        await sanitizeFields({
+          config: configWithBlocks,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships: [],
+        })
+      }).rejects.toThrow(InvalidConfiguration)
+    })
+
+    it('should not throw when blockReferences contains valid slugs', async () => {
+      const configWithBlocks = {
+        blocks: [
+          {
+            slug: 'validBlock1',
+            fields: [
+              {
+                name: 'content',
+                type: 'text',
+              },
+            ],
+          },
+          {
+            slug: 'validBlock2',
+            fields: [
+              {
+                name: 'title',
+                type: 'text',
+              },
+            ],
+          },
+        ],
+      } as Config
+
+      const fields: Field[] = [
+        {
+          name: 'content',
+          type: 'blocks',
+          blocks: [],
+          blockReferences: ['validBlock1', 'validBlock2'],
+        },
+      ]
+
+      await expect(
+        sanitizeFields({
+          config: configWithBlocks,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships: [],
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('should not throw when blockReferences is GlobalBlocks', async () => {
+      const configWithBlocks = {
+        blocks: [
+          {
+            slug: 'someBlock',
+            fields: [
+              {
+                name: 'content',
+                type: 'text',
+              },
+            ],
+          },
+        ],
+      } as Config
+
+      const fields: Field[] = [
+        {
+          name: 'content',
+          type: 'blocks',
+          blocks: [],
+          blockReferences: 'GlobalBlocks',
+        },
+      ]
+
+      await expect(
+        sanitizeFields({
+          config: configWithBlocks,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships: [],
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('should not throw when blockReferences contains inline Block objects', async () => {
+      const configWithBlocks = {
+        blocks: [
+          {
+            slug: 'globalBlock',
+            fields: [
+              {
+                name: 'content',
+                type: 'text',
+              },
+            ],
+          },
+        ],
+      } as Config
+
+      const fields: Field[] = [
+        {
+          name: 'content',
+          type: 'blocks',
+          blocks: [],
+          blockReferences: [
+            'globalBlock',
+            {
+              slug: 'inlineBlock',
+              fields: [
+                {
+                  name: 'title',
+                  type: 'text',
+                },
+              ],
+            },
+          ],
+        },
+      ]
+
+      await expect(
+        sanitizeFields({
+          config: configWithBlocks,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships: [],
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('should not throw when config.blocks is undefined', async () => {
+      const configWithoutBlocks = {} as Config
+
+      const fields: Field[] = [
+        {
+          name: 'content',
+          type: 'blocks',
+          blocks: [
+            {
+              slug: 'inlineBlock',
+              fields: [
+                {
+                  name: 'content',
+                  type: 'text',
+                },
+              ],
+            },
+          ],
+        },
+      ]
+
+      await expect(
+        sanitizeFields({
+          config: configWithoutBlocks,
+          collectionConfig,
+          fields,
+          parentIsLocalized: false,
+          validRelationships: [],
+        }),
+      ).resolves.not.toThrow()
     })
   })
 })

@@ -12,11 +12,14 @@ import type {
   SanitizedPermissions,
 } from '../auth/types.js'
 
-function checkAndSanitizeFieldsPermssions(data: FieldsPermissions): boolean {
+function checkAndSanitizeFieldsPermssions(
+  data: FieldsPermissions,
+  visited: WeakSet<object> = new WeakSet(),
+): boolean {
   let allFieldPermissionsTrue = true
   for (const key in data) {
     if (typeof data[key] === 'object') {
-      if (!checkAndSanitizePermissions(data[key])) {
+      if (!checkAndSanitizePermissions(data[key], visited)) {
         allFieldPermissionsTrue = false
       } else {
         ;(data[key] as unknown as SanitizedFieldPermissions) = true
@@ -36,8 +39,16 @@ function checkAndSanitizeFieldsPermssions(data: FieldsPermissions): boolean {
  */
 function checkAndSanitizePermissions(
   _data: CollectionPermission | FieldPermissions | GlobalPermission,
+  visited: WeakSet<object> = new WeakSet(),
 ): boolean {
   const data = _data as Record<string, any>
+
+  // Prevent infinite recursion by tracking visited objects
+  if (visited.has(data)) {
+    return true // Already processed, assume true to avoid blocking
+  }
+  visited.add(data)
+
   /**
    * Check blocks permissions
    */
@@ -51,7 +62,7 @@ function checkAndSanitizePermissions(
            */
           if (key === 'fields') {
             if (data.blocks[blockSlug].fields) {
-              if (!checkAndSanitizeFieldsPermssions(data.blocks[blockSlug].fields)) {
+              if (!checkAndSanitizeFieldsPermssions(data.blocks[blockSlug].fields, visited)) {
                 blocksPermissions = false
               } else {
                 ;(data.blocks[blockSlug].fields as unknown as SanitizedFieldsPermissions) = true
@@ -104,7 +115,7 @@ function checkAndSanitizePermissions(
    */
   let fieldsPermissions = true
   if (data.fields) {
-    if (!checkAndSanitizeFieldsPermssions(data.fields)) {
+    if (!checkAndSanitizeFieldsPermssions(data.fields, visited)) {
       fieldsPermissions = false
     } else {
       ;(data.fields as unknown as SanitizedFieldsPermissions) = true
@@ -161,7 +172,7 @@ function isPermissionObject(data: unknown): boolean {
 /**
  * Recursively remove empty objects from an object.
  */
-function cleanEmptyObjects(obj: any): void {
+function cleanEmptyObjects(obj: unknown): void {
   Object.keys(obj).forEach((key) => {
     if (typeof obj[key] === 'object' && obj[key] !== null) {
       // Recursive call

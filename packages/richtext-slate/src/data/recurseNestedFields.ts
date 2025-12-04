@@ -172,9 +172,14 @@ export const recurseNestedFields = ({
     } else if (Array.isArray(data[field.name])) {
       if (field.type === 'blocks') {
         data[field.name].forEach((row, i) => {
+          const blocksToSearch =
+            field.blockReferences === 'GlobalBlocks'
+              ? (req.payload.config.blocks ?? [])
+              : (field.blockReferences ?? field.blocks)
+
           const block =
             req.payload.blocks[row?.blockType] ??
-            ((field.blockReferences ?? field.blocks).find(
+            (blocksToSearch.find(
               (block) => typeof block !== 'string' && block.slug === row?.blockType,
             ) as FlattenedBlock | undefined)
           if (block) {
