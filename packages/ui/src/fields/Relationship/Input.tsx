@@ -238,8 +238,9 @@ export const RelationshipInput: React.FC<RelationshipInputProps> = (props) => {
 
             if (resultsFetched < 10) {
               const collection = getEntityConfig({ collectionSlug: relation })
-              const fieldToSearch = collection?.admin?.useAsTitle || 'id'
+              const displayField = collection?.admin?.useAsTitle || 'id'
               let fieldToSort = collection?.defaultSort || 'id'
+              const fieldsToSearch = collection?.admin?.listSearchableFields ?? ['id']
               if (typeof sortOptions === 'string') {
                 fieldToSort = sortOptions
               } else if (sortOptions?.[relation]) {
@@ -256,7 +257,7 @@ export const RelationshipInput: React.FC<RelationshipInputProps> = (props) => {
                 locale,
                 page: lastLoadedPageToUse,
                 select: {
-                  [fieldToSearch]: true,
+                  [displayField]: true,
                 },
                 sort: fieldToSort,
                 where: {
@@ -271,11 +272,13 @@ export const RelationshipInput: React.FC<RelationshipInputProps> = (props) => {
               }
 
               if (searchArg) {
-                query.where.and.push({
-                  [fieldToSearch]: {
-                    like: searchArg,
-                  },
-                })
+                query.where.and.push(
+                  fieldsToSearch.length > 1
+                    ? {
+                        or: fieldsToSearch.map((field) => ({ [field]: { like: searchArg } })),
+                      }
+                    : { [fieldsToSearch[0]]: { like: searchArg } },
+                )
               }
 
               if (relationFilterOption && typeof relationFilterOption !== 'boolean') {
@@ -370,7 +373,7 @@ export const RelationshipInput: React.FC<RelationshipInputProps> = (props) => {
           setIsLoading(false)
         },
         search: searchArg,
-        sort: true,
+        sort: false,
         ...(hasManyArg === true
           ? {
               hasMany: hasManyArg,
