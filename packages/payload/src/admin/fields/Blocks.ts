@@ -1,7 +1,12 @@
 import type React from 'react'
 import type { MarkOptional } from 'ts-essentials'
 
-import type { BlocksField, BlocksFieldClient } from '../../fields/config/types.js'
+import type {
+  BlocksField,
+  BlocksFieldClient,
+  ClientBlock,
+  Labels,
+} from '../../fields/config/types.js'
 import type { BlocksFieldValidation } from '../../fields/validations.js'
 import type { FieldErrorClientComponent, FieldErrorServerComponent } from '../forms/Error.js'
 import type {
@@ -89,3 +94,11 @@ export type BlocksFieldDiffServerComponent = FieldDiffServerComponent<
 >
 
 export type BlocksFieldDiffClientComponent = FieldDiffClientComponent<BlocksFieldClient>
+
+export type BlocksFieldDrawerClientComponent = React.ComponentType<{
+  readonly addRow: (index: number, blockType?: string) => Promise<void> | void
+  readonly addRowIndex: number
+  readonly blocks: (ClientBlock | string)[]
+  readonly drawerSlug: string
+  readonly labels: Labels
+}>

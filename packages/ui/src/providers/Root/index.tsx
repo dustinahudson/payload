@@ -79,7 +79,7 @@ export const RootProvider: React.FC<Props> = ({
       <ServerFunctionsProvider serverFunction={serverFunction}>
         <RouteTransitionProvider>
           <RouteCache
-            cachingEnabled={process.env.NEXT_PUBLIC_ENABLE_ROUTER_CACHE_REFRESH === 'true'}
+            cachingEnabled={process?.env?.NEXT_PUBLIC_ENABLE_ROUTER_CACHE_REFRESH === 'true'}
           >
             <ConfigProvider config={config}>
               <ClientFunctionProvider>
