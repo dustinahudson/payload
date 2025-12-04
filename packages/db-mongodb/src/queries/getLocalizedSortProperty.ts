@@ -73,29 +73,34 @@ export const getLocalizedSortProperty = ({
     }
 
     if (matchedField.type === 'blocks') {
-      nextFields = (matchedField.blockReferences ?? matchedField.blocks).reduce<FlattenedField[]>(
-        (flattenedBlockFields, _block) => {
-          // TODO: iterate over blocks mapped to block slug in v4, or pass through payload.blocks
-          const block =
-            typeof _block === 'string' ? config.blocks?.find((b) => b.slug === _block) : _block
+      // Handle blockReferences which can be 'GlobalBlocks' or an array
+      const blocksToProcess =
+        matchedField.blockReferences === 'GlobalBlocks'
+          ? (config.blocks ?? [])
+          : Array.isArray(matchedField.blockReferences)
+            ? matchedField.blockReferences
+            : matchedField.blocks
 
-          if (!block) {
-            return [...flattenedBlockFields]
-          }
+      nextFields = blocksToProcess.reduce<FlattenedField[]>((flattenedBlockFields, _block) => {
+        // TODO: iterate over blocks mapped to block slug in v4, or pass through payload.blocks
+        const block =
+          typeof _block === 'string' ? config.blocks?.find((b) => b.slug === _block) : _block
 
-          return [
-            ...flattenedBlockFields,
-            ...block.flattenedFields.filter(
-              (blockField) =>
-                (fieldAffectsData(blockField) &&
-                  blockField.name !== 'blockType' &&
-                  blockField.name !== 'blockName') ||
-                !fieldAffectsData(blockField),
-            ),
-          ]
-        },
-        [],
-      )
+        if (!block) {
+          return [...flattenedBlockFields]
+        }
+
+        return [
+          ...flattenedBlockFields,
+          ...block.flattenedFields.filter(
+            (blockField) =>
+              (fieldAffectsData(blockField) &&
+                blockField.name !== 'blockType' &&
+                blockField.name !== 'blockName') ||
+              !fieldAffectsData(blockField),
+          ),
+        ]
+      }, [])
     }
 
     const result = incomingResult ? `${incomingResult}.${localizedSegment}` : localizedSegment

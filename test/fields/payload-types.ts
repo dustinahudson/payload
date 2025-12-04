@@ -72,6 +72,7 @@ export interface Config {
     ConfigBlockTest: ConfigBlockTest;
     localizedTextReference: LocalizedTextReference;
     localizedTextReference2: LocalizedTextReference2;
+    globalBlockWithValidation: GlobalBlockWithValidation;
   };
   collections: {
     users: User;
@@ -243,6 +244,16 @@ export interface LocalizedTextReference2 {
   id?: string | null;
   blockName?: string | null;
   blockType: 'localizedTextReference2';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "globalBlockWithValidation".
+ */
+export interface GlobalBlockWithValidation {
+  validatedText: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'globalBlockWithValidation';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -664,6 +675,7 @@ export interface BlockField {
           }
       )[]
     | null;
+  globalBlocksWithValidation?: GlobalBlockWithValidation[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2702,6 +2714,7 @@ export interface BlockFieldsSelect<T extends boolean = true> {
               blockName?: T;
             };
       };
+  globalBlocksWithValidation?: T | {};
   updatedAt?: T;
   createdAt?: T;
 }

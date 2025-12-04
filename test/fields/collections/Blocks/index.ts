@@ -628,5 +628,11 @@ export const BlockFields: CollectionConfig = {
         },
       ],
     },
+    {
+      name: 'globalBlocksWithValidation',
+      type: 'blocks',
+      blockReferences: ['globalBlockWithValidation'],
+      blocks: [],
+    },
   ],
 }

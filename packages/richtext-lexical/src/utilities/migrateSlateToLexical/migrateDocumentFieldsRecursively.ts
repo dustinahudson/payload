@@ -54,9 +54,14 @@ export const migrateDocumentFieldsRecursively = ({
       if (field.type === 'blocks') {
         ;(data[field.name] as Array<Record<string, unknown>>).forEach((row) => {
           const blockTypeToMatch: string = row?.blockType as string
+          const blocksToSearch =
+            field.blockReferences === 'GlobalBlocks'
+              ? (payload?.config.blocks ?? [])
+              : (field.blockReferences ?? field.blocks)
+
           const block =
             payload?.blocks[blockTypeToMatch] ??
-            ((field.blockReferences ?? field.blocks).find(
+            (blocksToSearch.find(
               (block) => typeof block !== 'string' && block.slug === blockTypeToMatch,
             ) as FlattenedBlock | undefined)
 

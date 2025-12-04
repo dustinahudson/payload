@@ -3,6 +3,7 @@ import type { RequestContext } from '../../../index.js'
 import type { JsonObject, PayloadRequest } from '../../../types/index.js'
 import type { Block, Field, FieldHookArgs, TabAsField } from '../../config/types.js'
 
+import { resolveBlock } from '../../../utilities/resolveBlock.js'
 import { fieldAffectsData, fieldShouldBeLocalized } from '../../config/types.js'
 import { getFieldPaths } from '../../getFieldPaths.js'
 import { traverseFields } from './traverseFields.js'
@@ -195,10 +196,11 @@ export const promise = async <T>({
 
                   const block: Block | undefined =
                     req.payload.blocks[blockTypeToMatch] ??
-                    ((field.blockReferences ?? field.blocks).find(
-                      (curBlock) =>
-                        typeof curBlock !== 'string' && curBlock.slug === blockTypeToMatch,
-                    ) as Block | undefined)
+                    resolveBlock({
+                      blockType: blockTypeToMatch,
+                      field,
+                      payload: req.payload,
+                    })
 
                   promises.push(
                     traverseFields({
@@ -297,9 +299,11 @@ export const promise = async <T>({
 
               const block: Block | undefined =
                 req.payload.blocks[blockTypeToMatch] ??
-                ((field.blockReferences ?? field.blocks).find(
-                  (curBlock) => typeof curBlock !== 'string' && curBlock.slug === blockTypeToMatch,
-                ) as Block | undefined)
+                resolveBlock({
+                  blockType: blockTypeToMatch,
+                  field,
+                  payload: req.payload,
+                })
 
               if (block) {
                 ;(row as JsonObject).blockType = blockTypeToMatch

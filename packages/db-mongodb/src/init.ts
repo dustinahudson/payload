@@ -14,7 +14,7 @@ import type { CollectionModel, GlobalModel } from './types.js'
 
 import { buildCollectionSchema } from './models/buildCollectionSchema.js'
 import { buildGlobalModel } from './models/buildGlobalModel.js'
-import { buildSchema } from './models/buildSchema.js'
+import { buildGlobalBlockSchemas, buildSchema } from './models/buildSchema.js'
 import { getBuildQueryPlugin } from './queries/getBuildQueryPlugin.js'
 import { getDBName } from './utilities/getDBName.js'
 
@@ -26,6 +26,20 @@ export const init: Init = async function init(this: MongooseAdapter) {
   if (this.afterCreateConnection) {
     await this.afterCreateConnection(this)
   }
+
+  // Build global block schemas before collections/globals
+  // This allows BlocksFields to reference pre-built schemas instead of building them inline
+  const globalBlockSchemas = buildGlobalBlockSchemas(this.payload, {
+    disableUnique: false,
+    draftsEnabled: false,
+    indexSortableFields: this.payload.config.indexSortableFields,
+    options: {
+      minimize: false,
+    },
+  })
+
+  // Store the schemas on the adapter for later reference
+  this.globalBlockSchemas = globalBlockSchemas
 
   this.payload.config.collections.forEach((collection: SanitizedCollectionConfig) => {
     const schemaOptions = this.collectionsSchemaOptions?.[collection.slug]

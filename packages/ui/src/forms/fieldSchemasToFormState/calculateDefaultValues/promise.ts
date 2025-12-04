@@ -1,4 +1,5 @@
 import type {
+  Block,
   Data,
   Field,
   FlattenedBlock,
@@ -110,9 +111,39 @@ export const defaultValuePromise = async <T>({
         rows.forEach((row) => {
           const blockTypeToMatch: string = row.blockType
 
+          // Determine which blocks to search
+          let blocksToSearch: (Block | string)[]
+
+          if (!field.blockReferences) {
+            blocksToSearch = field.blocks
+          } else if (field.blockReferences === 'GlobalBlocks') {
+            // Include all global blocks plus inline blocks
+            const inlineSlugs = new Set(field.blocks.map((b) => b.slug))
+            blocksToSearch = [...field.blocks]
+
+            if (req.payload.config.blocks) {
+              for (const globalBlock of req.payload.config.blocks) {
+                if (!inlineSlugs.has(globalBlock.slug)) {
+                  blocksToSearch.push(globalBlock)
+                }
+              }
+            }
+          } else {
+            // blockReferences is an array
+            const inlineSlugs = new Set(field.blocks.map((b) => b.slug))
+            blocksToSearch = [...field.blocks]
+
+            for (const ref of field.blockReferences) {
+              const slug = typeof ref === 'string' ? ref : ref.slug
+              if (!inlineSlugs.has(slug)) {
+                blocksToSearch.push(ref)
+              }
+            }
+          }
+
           const block =
             req.payload.blocks[blockTypeToMatch] ??
-            ((field.blockReferences ?? field.blocks).find(
+            (blocksToSearch.find(
               (blockType) => typeof blockType !== 'string' && blockType.slug === blockTypeToMatch,
             ) as FlattenedBlock | undefined)
 

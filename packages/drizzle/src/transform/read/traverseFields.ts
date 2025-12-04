@@ -245,9 +245,14 @@ export const traverseFields = <T extends Record<string, unknown>>({
 
           Object.entries(result[field.name]).forEach(([locale, localizedBlocks]) => {
             result[field.name][locale] = localizedBlocks.map((row) => {
+              const blocksToSearch =
+                field.blockReferences === 'GlobalBlocks'
+                  ? (adapter.payload.config.blocks ?? [])
+                  : (field.blockReferences ?? field.blocks)
+
               const block =
                 adapter.payload.blocks[row.blockType] ??
-                ((field.blockReferences ?? field.blocks).find(
+                (blocksToSearch.find(
                   (block) => typeof block !== 'string' && block.slug === row.blockType,
                 ) as FlattenedBlock | undefined)
 
@@ -312,9 +317,14 @@ export const traverseFields = <T extends Record<string, unknown>>({
               return acc
             }
 
+            const blocksToSearch =
+              field.blockReferences === 'GlobalBlocks'
+                ? (adapter.payload.config.blocks ?? [])
+                : (field.blockReferences ?? field.blocks)
+
             const block =
               adapter.payload.blocks[row.blockType] ??
-              ((field.blockReferences ?? field.blocks).find(
+              (blocksToSearch.find(
                 (block) => typeof block !== 'string' && block.slug === row.blockType,
               ) as FlattenedBlock | undefined)
 

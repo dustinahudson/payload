@@ -56,15 +56,20 @@ export const flattenAllFields = ({
 
       case 'blocks': {
         const blocks: FlattenedBlock[] = []
-        let blockReferences: (FlattenedBlock | string)[] | undefined = undefined
+        let blockReferences: 'GlobalBlocks' | (FlattenedBlock | string)[] | undefined = undefined
         if (field.blockReferences) {
-          blockReferences = []
-          for (const block of field.blockReferences) {
-            if (typeof block === 'string') {
-              blockReferences.push(block)
-              continue
+          // Handle 'GlobalBlocks' string literal separately to avoid iterating over characters
+          if (field.blockReferences === 'GlobalBlocks') {
+            blockReferences = 'GlobalBlocks'
+          } else {
+            blockReferences = []
+            for (const block of field.blockReferences) {
+              if (typeof block === 'string') {
+                blockReferences.push(block)
+                continue
+              }
+              blockReferences.push(flattenBlock({ block }))
             }
-            blockReferences.push(flattenBlock({ block }))
           }
         } else {
           for (const block of field.blocks) {

@@ -396,9 +396,30 @@ export const sanitizeField = async ({
       throw new Error('You cannot have both blockReferences and blocks in the same blocks field')
     }
 
+    // Validate blockReferences against config.blocks
+    if (field.blockReferences && field.blockReferences !== 'GlobalBlocks') {
+      const globalBlockSlugs = new Set(config.blocks?.map((block) => block.slug) ?? [])
+
+      for (const ref of field.blockReferences) {
+        // Only validate string references (slugs), not inline Block objects
+        if (typeof ref === 'string' && !globalBlockSlugs.has(ref)) {
+          throw new InvalidConfiguration(
+            `Block slug "${ref}" referenced in field "${field.name}" does not exist in config.blocks`,
+          )
+        }
+      }
+    }
+
     const blockSlugs: string[] = []
 
-    for (const block of field.blockReferences ?? field.blocks) {
+    // Only process blocks if blockReferences is not 'GlobalBlocks'
+    // When it's 'GlobalBlocks', the blocks are already sanitized in config.blocks
+    const blocksToProcess =
+      field.blockReferences === 'GlobalBlocks'
+        ? field.blocks
+        : (field.blockReferences ?? field.blocks)
+
+    for (const block of blocksToProcess) {
       const blockSlug = typeof block === 'string' ? block : block.slug
 
       if (blockSlugs.includes(blockSlug)) {

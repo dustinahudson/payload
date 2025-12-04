@@ -63,12 +63,16 @@ export function getBlockFields({
   config: ClientConfig
   field: BlocksFieldClient
 }): ClientField[] {
+  const blocksToSearch =
+    'blocks' in field || 'blockReferences' in field
+      ? field.blockReferences === 'GlobalBlocks'
+        ? (config?.blocks ?? [])
+        : (field.blockReferences ?? field.blocks)
+      : []
+
   const matchedBlock =
     (blockSlug && config?.blocksMap?.[blockSlug]) ||
-    (('blocks' in field || 'blockReferences' in field) &&
-      (field.blockReferences ?? field.blocks)?.find(
-        (block) => typeof block !== 'string' && block.slug === blockSlug,
-      ))
+    blocksToSearch?.find((block) => typeof block !== 'string' && block.slug === blockSlug)
 
   return typeof matchedBlock === 'string' ? [] : (matchedBlock?.fields ?? [])
 }

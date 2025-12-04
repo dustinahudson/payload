@@ -142,7 +142,12 @@ import {
 } from './collections/operations/local/countVersions.js'
 import { consoleEmailAdapter } from './email/consoleEmailAdapter.js'
 import { normalizeSendEmailOptions } from './email/normalizeSendEmailOptions.js'
-import { fieldAffectsData, type FlattenedBlock } from './fields/config/types.js'
+import {
+  type Block,
+  type ClientBlock,
+  fieldAffectsData,
+  type FlattenedBlock,
+} from './fields/config/types.js'
 import { getJobsLocalAPI } from './queues/localAPI.js'
 import { _internal_jobSystemGlobals } from './queues/utilities/getCurrentDate.js'
 import { formatAdminURL } from './utilities/formatAdminURL.js'
@@ -403,6 +408,21 @@ const dirname = path.dirname(filename)
 let checkedDependencies = false
 
 /**
+ * Global Block Schema Registry
+ * Stores pre-built schemas for blocks defined in config.blocks
+ */
+export interface GlobalBlockSchemas {
+  [blockSlug: string]: {
+    /** Client field schema for admin UI */
+    clientFieldSchema: ClientBlock
+    /** The sanitized block configuration */
+    config: FlattenedBlock
+    /** Server field schema for SSR */
+    serverFieldSchema: Block
+  }
+}
+
+/**
  * @description Payload
  */
 export class BasePayload {
@@ -422,6 +442,7 @@ export class BasePayload {
   collections: Record<CollectionSlug, Collection> = {}
 
   config!: SanitizedConfig
+
   /**
    * @description Performs count operation
    * @param options
@@ -432,7 +453,6 @@ export class BasePayload {
   ): Promise<{ totalDocs: number }> => {
     return countLocal(this, options)
   }
-
   /**
    * @description Performs countGlobalVersions operation
    * @param options
@@ -467,8 +487,8 @@ export class BasePayload {
   }
 
   crons: Cron[] = []
-  db!: DatabaseAdapter
 
+  db!: DatabaseAdapter
   decrypt = decrypt
 
   destroy = async () => {
@@ -491,10 +511,10 @@ export class BasePayload {
 
   email!: InitializedEmailAdapter
 
+  encrypt = encrypt
+
   // TODO: re-implement or remove?
   // errorHandler: ErrorHandler
-
-  encrypt = encrypt
 
   extensions!: (args: {
     args: OperationArgs<any>
@@ -623,6 +643,12 @@ export class BasePayload {
       path: '',
       serverURL: this.config.serverURL,
     })
+
+  /**
+   * Global block schemas registry
+   * Stores pre-built client and server schemas for blocks defined in config.blocks
+   */
+  globalBlockSchemas: GlobalBlockSchemas = {}
 
   globals!: Globals
 
@@ -1551,9 +1577,9 @@ export interface CollectionCustom extends Record<string, any> {}
 
 export interface CollectionAdminCustom extends Record<string, any> {}
 
-export interface GlobalCustom extends Record<string, any> {}
+export type GlobalCustom = Record<string, any>
 
-export interface GlobalAdminCustom extends Record<string, any> {}
+export type GlobalAdminCustom = Record<string, any>
 
 export { sanitizeField, sanitizeFields } from './fields/config/sanitize.js'
 export type { SanitizeFieldArgs } from './fields/config/sanitize.js'
@@ -1611,6 +1637,7 @@ export type {
   FlattenedGroupField,
   FlattenedJoinField,
   FlattenedTabAsField,
+  GlobalBlocksReference,
   GroupField,
   GroupFieldClient,
   HookName,
@@ -1863,6 +1890,8 @@ export { mergeHeaders } from './utilities/mergeHeaders.js'
 export { parseDocumentID } from './utilities/parseDocumentID.js'
 export { parseParams } from './utilities/parseParams/index.js'
 export type { ParsedParams, RawParams } from './utilities/parseParams/index.js'
+export { resolveBlock } from './utilities/resolveBlock.js'
+export type { ResolveBlockArgs } from './utilities/resolveBlock.js'
 export { sanitizeFallbackLocale } from './utilities/sanitizeFallbackLocale.js'
 export { sanitizeJoinParams } from './utilities/sanitizeJoinParams.js'
 export type { JoinParams } from './utilities/sanitizeJoinParams.js'
