@@ -172,7 +172,10 @@ function isPermissionObject(data: unknown): boolean {
 /**
  * Recursively remove empty objects from an object.
  */
-function cleanEmptyObjects(obj: unknown): void {
+function cleanEmptyObjects(obj: any): void {
+  if (typeof obj !== 'object' || obj === null) {
+    return
+  }
   Object.keys(obj).forEach((key) => {
     if (typeof obj[key] === 'object' && obj[key] !== null) {
       // Recursive call
