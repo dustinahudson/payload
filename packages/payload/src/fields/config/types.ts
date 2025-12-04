@@ -329,6 +329,13 @@ export type FilterOptions<TData = any> = FilterOptionsFunc<TData> | null | Where
 
 type BlockSlugOrString = (({} & string) | BlockSlug)[]
 
+/**
+ * Special value for blockReferences that includes all blocks from config.blocks.
+ * When used in a BlocksField's blockReferences property, it makes all globally
+ * defined blocks available for selection without needing to list them individually.
+ */
+export type GlobalBlocksReference = 'GlobalBlocks'
+
 export type BlocksFilterOptionsProps<TData = any> = {
   /**
    * The `id` of the current document being edited. Will be undefined during the `create` operation.
@@ -1546,7 +1553,7 @@ export type BlocksField = {
    *
    * @todo `blockReferences` will be merged with `blocks` in 4.0
    */
-  blockReferences?: (Block | BlockSlug)[]
+  blockReferences?: (Block | BlockSlug)[] | GlobalBlocksReference
   blocks: Block[]
   defaultValue?: DefaultValue
   /**
@@ -1591,10 +1598,11 @@ export type BlocksFieldClient = {
   admin?: AdminClient & Pick<BlocksField['admin'], 'initCollapsed' | 'isSortable'>
   /**
    * Like `blocks`, but allows you to also pass strings that are slugs of blocks defined in `config.blocks`.
+   * Use 'GlobalBlocks' to include all blocks from config.blocks.
    *
    * @todo `blockReferences` will be merged with `blocks` in 4.0
    */
-  blockReferences?: (ClientBlock | string)[]
+  blockReferences?: (ClientBlock | string)[] | GlobalBlocksReference
   blocks: ClientBlock[]
   labels?: LabelsClient
 } & FieldBaseClient &
@@ -1721,7 +1729,7 @@ export type FlattenedBlocksField = {
    *
    * @todo `blockReferences` will be merged with `blocks` in 4.0
    */
-  blockReferences?: (FlattenedBlock | string)[]
+  blockReferences?: 'GlobalBlocks' | (FlattenedBlock | string)[]
   blocks: FlattenedBlock[]
 } & Omit<BlocksField, 'blockReferences' | 'blocks'>
 

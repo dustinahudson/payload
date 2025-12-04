@@ -309,13 +309,21 @@ export const createClientField = ({
         }
       }
 
-      if (incomingField.blockReferences?.length) {
-        field.blockReferences = createClientBlocks({
-          blocks: incomingField.blockReferences,
-          defaultIDType,
-          i18n,
-          importMap,
-        })
+      if (incomingField.blockReferences) {
+        if (incomingField.blockReferences === 'GlobalBlocks') {
+          // Store the string literal for global blocks reference
+          field.blockReferences = 'GlobalBlocks'
+        } else if (
+          Array.isArray(incomingField.blockReferences) &&
+          incomingField.blockReferences.length
+        ) {
+          field.blockReferences = createClientBlocks({
+            blocks: incomingField.blockReferences,
+            defaultIDType,
+            i18n,
+            importMap,
+          })
+        }
       }
 
       if (incomingField.blocks?.length) {

@@ -197,9 +197,14 @@ export const getTableColumnFromPath = ({
           // find the block config using the value
           const blockTypes = Array.isArray(value) ? value : [value]
           blockTypes.forEach((blockType) => {
+            const blocksToSearch =
+              field.blockReferences === 'GlobalBlocks'
+                ? (adapter.payload.config.blocks ?? [])
+                : (field.blockReferences ?? field.blocks)
+
             const block =
               adapter.payload.blocks[blockType] ??
-              ((field.blockReferences ?? field.blocks).find(
+              (blocksToSearch.find(
                 (block) => typeof block !== 'string' && block.slug === blockType,
               ) as FlattenedBlock | undefined)
 
@@ -228,7 +233,12 @@ export const getTableColumnFromPath = ({
           }
         }
 
-        const hasBlockField = (field.blockReferences ?? field.blocks).some((_block) => {
+        const blocksToCheck =
+          field.blockReferences === 'GlobalBlocks'
+            ? (adapter.payload.config.blocks ?? [])
+            : (field.blockReferences ?? field.blocks)
+
+        const hasBlockField = blocksToCheck.some((_block) => {
           const block = typeof _block === 'string' ? adapter.payload.blocks[_block] : _block
 
           newTableName = resolveBlockTableName(

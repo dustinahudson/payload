@@ -83,9 +83,37 @@ function iterateFields(
           // if the field has a value - loop over the data from target
           if (field.name in toLocaleData) {
             toLocaleData[field.name].map((blockData: Data, index: number) => {
+              // Determine which blocks to search
+              let blocksToSearch: typeof field.blocks = field.blocks
+
+              if (field.blockReferences === 'GlobalBlocks') {
+                // Include all global blocks plus inline blocks
+                const inlineSlugs = new Set(field.blocks.map((b) => b.slug))
+                blocksToSearch = [...field.blocks]
+
+                if (req.payload.config.blocks) {
+                  for (const globalBlock of req.payload.config.blocks) {
+                    if (!inlineSlugs.has(globalBlock.slug)) {
+                      blocksToSearch.push(globalBlock as any)
+                    }
+                  }
+                }
+              } else if (Array.isArray(field.blockReferences)) {
+                // blockReferences is an array
+                const inlineSlugs = new Set(field.blocks.map((b) => b.slug))
+                blocksToSearch = [...field.blocks]
+
+                for (const ref of field.blockReferences) {
+                  const slug = typeof ref === 'string' ? ref : ref.slug
+                  if (!inlineSlugs.has(slug)) {
+                    blocksToSearch.push(ref as any)
+                  }
+                }
+              }
+
               const block =
                 req.payload.blocks[blockData.blockType] ??
-                ((field.blockReferences ?? field.blocks).find(
+                (blocksToSearch.find(
                   (block) => typeof block !== 'string' && block.slug === blockData.blockType,
                 ) as FlattenedBlock | undefined)
 

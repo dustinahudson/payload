@@ -443,4 +443,233 @@ describe('configToJSONSchema', () => {
     // @ts-expect-error
     expect(schema.definitions.test.properties.title.required).toStrictEqual(false)
   })
+
+  it('should generate GlobalBlocks union type when config.blocks is defined', async () => {
+    // @ts-expect-error
+    const config: Config = {
+      blocks: [
+        {
+          slug: 'hero',
+          interfaceName: 'HeroBlock',
+          fields: [
+            {
+              name: 'title',
+              type: 'text',
+            },
+          ],
+        },
+        {
+          slug: 'cta',
+          fields: [
+            {
+              name: 'text',
+              type: 'text',
+            },
+          ],
+        },
+      ],
+      collections: [
+        {
+          slug: 'test',
+          fields: [
+            {
+              name: 'content',
+              type: 'blocks',
+              blocks: [], // Must have blocks array even if empty
+              blockReferences: 'GlobalBlocks',
+            },
+          ],
+          timestamps: false,
+        },
+      ],
+    }
+
+    const sanitizedConfig = await sanitizeConfig(config)
+    const schema = configToJSONSchema(sanitizedConfig, 'text')
+
+    // GlobalBlocks union type should be defined
+    expect(schema?.definitions?.GlobalBlocks).toBeDefined()
+    expect(schema?.definitions?.GlobalBlocks).toStrictEqual({
+      oneOf: [{ $ref: '#/definitions/HeroBlock' }, { $ref: '#/definitions/cta' }],
+    })
+
+    // BlocksField with blockReferences: 'GlobalBlocks' should reference GlobalBlocks
+    expect(schema?.definitions?.test?.properties?.content).toStrictEqual({
+      type: ['array', 'null'],
+      items: {
+        $ref: '#/definitions/GlobalBlocks',
+      },
+    })
+  })
+
+  it('should handle blockReferences with specific block slugs', async () => {
+    // @ts-expect-error
+    const config: Config = {
+      blocks: [
+        {
+          slug: 'hero',
+          fields: [
+            {
+              name: 'title',
+              type: 'text',
+            },
+          ],
+        },
+        {
+          slug: 'cta',
+          fields: [
+            {
+              name: 'text',
+              type: 'text',
+            },
+          ],
+        },
+        {
+          slug: 'footer',
+          fields: [
+            {
+              name: 'copyright',
+              type: 'text',
+            },
+          ],
+        },
+      ],
+      collections: [
+        {
+          slug: 'test',
+          fields: [
+            {
+              name: 'content',
+              type: 'blocks',
+              blocks: [],
+              blockReferences: ['hero', 'cta'],
+            },
+          ],
+          timestamps: false,
+        },
+      ],
+    }
+
+    const sanitizedConfig = await sanitizeConfig(config)
+    const schema = configToJSONSchema(sanitizedConfig, 'text')
+
+    // Should only include referenced blocks
+    expect(schema?.definitions?.test?.properties?.content).toStrictEqual({
+      type: ['array', 'null'],
+      items: {
+        oneOf: [{ $ref: '#/definitions/hero' }, { $ref: '#/definitions/cta' }],
+      },
+    })
+  })
+
+  it('should handle blockReferences with mixed inline blocks and slugs', async () => {
+    // @ts-expect-error
+    const config: Config = {
+      blocks: [
+        {
+          slug: 'hero',
+          fields: [
+            {
+              name: 'title',
+              type: 'text',
+            },
+          ],
+        },
+      ],
+      collections: [
+        {
+          slug: 'test',
+          fields: [
+            {
+              name: 'content',
+              type: 'blocks',
+              blocks: [],
+              blockReferences: [
+                'hero', // Reference to global block
+                {
+                  // Inline block in blockReferences
+                  slug: 'custom',
+                  fields: [
+                    {
+                      name: 'data',
+                      type: 'text',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          timestamps: false,
+        },
+      ],
+    }
+
+    const sanitizedConfig = await sanitizeConfig(config)
+    const schema = configToJSONSchema(sanitizedConfig, 'text')
+
+    // Should include both referenced global block and inline block
+    const contentField = schema?.definitions?.test?.properties?.content
+    expect(contentField?.type).toEqual(['array', 'null'])
+    expect(contentField?.items?.oneOf).toHaveLength(2)
+
+    // Check that both hero reference and custom inline block are present
+    const refs = contentField?.items?.oneOf?.filter((item: any) => item.$ref)
+    const inlineBlocks = contentField?.items?.oneOf?.filter(
+      (item: any) => item.properties?.blockType,
+    )
+
+    expect(refs).toHaveLength(1)
+    expect(refs?.[0]).toEqual({ $ref: '#/definitions/hero' })
+    expect(inlineBlocks).toHaveLength(1)
+    expect(inlineBlocks?.[0]?.properties?.blockType?.const).toBe('custom')
+  })
+
+  it('should handle mixed inline blocks and blockReferences', async () => {
+    // @ts-expect-error
+    const config: Config = {
+      blocks: [
+        {
+          slug: 'hero',
+          fields: [
+            {
+              name: 'title',
+              type: 'text',
+            },
+          ],
+        },
+        {
+          slug: 'cta',
+          fields: [
+            {
+              name: 'text',
+              type: 'text',
+            },
+          ],
+        },
+      ],
+      collections: [
+        {
+          slug: 'test',
+          fields: [
+            {
+              name: 'content',
+              type: 'blocks',
+              blocks: [],
+              blockReferences: ['hero'],
+            },
+          ],
+          timestamps: false,
+        },
+      ],
+    }
+
+    const sanitizedConfig = await sanitizeConfig(config)
+    const schema = configToJSONSchema(sanitizedConfig, 'text')
+
+    // Should only include referenced blocks
+    const contentField = schema?.definitions?.test?.properties?.content
+    expect(contentField?.type).toEqual(['array', 'null'])
+    expect(contentField?.items?.oneOf).toHaveLength(1)
+    expect(contentField?.items?.oneOf?.[0]).toEqual({ $ref: '#/definitions/hero' })
+  })
 })

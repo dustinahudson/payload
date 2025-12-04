@@ -4,7 +4,12 @@ import type { JSONSchema4, JSONSchema4TypeName } from 'json-schema'
 import type { Auth } from '../auth/types.js'
 import type { SanitizedCollectionConfig } from '../collections/config/types.js'
 import type { SanitizedConfig } from '../config/types.js'
-import type { FieldAffectingData, FlattenedField, Option } from '../fields/config/types.js'
+import type {
+  FieldAffectingData,
+  FlattenedBlock,
+  FlattenedField,
+  Option,
+} from '../fields/config/types.js'
 import type { SanitizedGlobalConfig } from '../globals/config/types.js'
 
 import { MissingEditorProp } from '../errors/MissingEditorProp.js'
@@ -98,7 +103,7 @@ function generateCollectionJoinsSchemas(collections: SanitizedCollectionConfig[]
 
       for (const collectionSlug in joins) {
         for (const join of joins[collectionSlug]!) {
-          ;(schema.properties as any)[join.joinPath] = {
+          ;(schema.properties as Record<string, JSONSchema4>)[join.joinPath] = {
             type: 'string',
             enum: [collectionSlug],
           }
@@ -107,9 +112,11 @@ function generateCollectionJoinsSchemas(collections: SanitizedCollectionConfig[]
       }
 
       for (const join of polymorphicJoins) {
-        ;(schema.properties as any)[join.joinPath] = {
+        ;(schema.properties as Record<string, JSONSchema4>)[join.joinPath] = {
           type: 'string',
-          enum: join.field.collection,
+          enum: Array.isArray(join.field.collection)
+            ? join.field.collection
+            : [join.field.collection],
         }
         schema.required.push(join.joinPath)
       }
@@ -323,20 +330,50 @@ export function fieldsToJSONSchema(
             // Check for a case where no blocks are provided.
             // We need to generate an empty array for this case, note that JSON schema 4 doesn't support empty arrays
             // so the best we can get is `unknown[]`
-            const hasBlocks = Boolean(
-              field.blockReferences ? field.blockReferences.length : field.blocks.length,
-            )
+
+            // Determine which blocks to process
+            type BlockOrSlug = FlattenedBlock | string
+            let blocksToProcess: BlockOrSlug[] = []
+
+            // Handle blockReferences: 'GlobalBlocks' - use GlobalBlocks union type
+            if (field.blockReferences === 'GlobalBlocks') {
+              // Only global blocks - we can use the GlobalBlocks union type directly
+              const hasBlocks = Boolean(config?.blocks?.length)
+              fieldSchema = {
+                ...baseFieldSchema,
+                type: withNullableJSONSchemaType('array', isRequired),
+                items: hasBlocks
+                  ? {
+                      $ref: '#/definitions/GlobalBlocks',
+                    }
+                  : {},
+              }
+              break
+            } else if (Array.isArray(field.blockReferences)) {
+              // blockReferences can contain both inline Block objects and string slugs
+              blocksToProcess = field.blockReferences
+            } else {
+              // Use only inline blocks from blocks array
+              blocksToProcess = field.blocks
+            }
+
+            const hasBlocks = Boolean(blocksToProcess.length)
 
             fieldSchema = {
               ...baseFieldSchema,
               type: withNullableJSONSchemaType('array', isRequired),
               items: hasBlocks
                 ? {
-                    oneOf: (field.blockReferences ?? field.blocks).map((block) => {
+                    oneOf: blocksToProcess.map((block) => {
                       if (typeof block === 'string') {
                         const resolvedBlock = config?.blocks?.find((b) => b.slug === block)
+                        if (!resolvedBlock) {
+                          throw new Error(
+                            `Block slug "${block}" not found in config.blocks. Field: ${field.name}, blocksToProcess: ${JSON.stringify(blocksToProcess)}`,
+                          )
+                        }
                         return {
-                          $ref: `#/definitions/${resolvedBlock!.interfaceName ?? resolvedBlock!.slug}`,
+                          $ref: `#/definitions/${resolvedBlock.interfaceName ?? resolvedBlock.slug}`,
                         }
                       }
                       const blockFieldSchemas = fieldsToJSONSchema(
@@ -899,19 +936,88 @@ export function fieldsToSelectJSONSchema({
           properties: {},
         }
 
-        for (const block of field.blockReferences ?? field.blocks) {
+        // Determine which blocks to process for select schema
+        let blocksToProcess: (FlattenedBlock | string)[] = []
+        if (field.blockReferences === 'GlobalBlocks') {
+          // Use all global blocks
+          blocksToProcess = config?.blocks ?? []
+        } else if (field.blockReferences) {
+          // Use specified block references
+          blocksToProcess = field.blockReferences
+        } else {
+          // Use inline blocks
+          blocksToProcess = field.blocks
+        }
+
+        for (const block of blocksToProcess) {
           if (typeof block === 'string') {
-            continue // TODO
+            // Handle string references to global blocks
+            const resolvedBlock = config?.blocks?.find((b) => b.slug === block)
+            if (!resolvedBlock) {
+              continue
+            }
+
+            const interfaceName = resolvedBlock.interfaceName ?? resolvedBlock.slug
+            const definition = `${interfaceName}_select`
+
+            // Check if we've already processed this block to prevent infinite recursion
+            let blockSchema: JSONSchema4
+            if (interfaceNameDefinitions.has(definition)) {
+              // Already processed, just reference it
+              blockSchema = {
+                $ref: `#/definitions/${definition}`,
+              }
+            } else {
+              // Mark as being processed to prevent cycles
+              interfaceNameDefinitions.set(definition, { type: 'object' })
+
+              // Now build the actual schema
+              blockSchema = fieldsToSelectJSONSchema({
+                config,
+                fields: resolvedBlock.flattenedFields,
+                interfaceNameDefinitions,
+              })
+
+              // Update with the complete schema
+              interfaceNameDefinitions.set(definition, blockSchema)
+              blockSchema = {
+                $ref: `#/definitions/${definition}`,
+              }
+            }
+
+            blocksSchema.properties![resolvedBlock.slug] = {
+              oneOf: [
+                {
+                  type: 'boolean',
+                },
+                blockSchema,
+              ],
+            }
+            continue
           }
 
-          let blockSchema = fieldsToSelectJSONSchema({
-            config,
-            fields: block.flattenedFields,
-            interfaceNameDefinitions,
-          })
+          const interfaceName = block.interfaceName ?? block.slug
+          const definition = `${interfaceName}_select`
 
-          if (block.interfaceName) {
-            const definition = `${block.interfaceName}_select`
+          // Check if we've already processed this block to prevent infinite recursion
+          let blockSchema: JSONSchema4
+          if (interfaceNameDefinitions.has(definition)) {
+            // Already processed, just reference it
+            blockSchema = {
+              $ref: `#/definitions/${definition}`,
+            }
+          } else {
+            // Mark as being processed to prevent cycles
+            interfaceNameDefinitions.set(definition, { type: 'object' })
+
+            // Now build the actual schema
+            blockSchema = fieldsToSelectJSONSchema({
+              config,
+              fields: block.flattenedFields,
+              interfaceNameDefinitions,
+            })
+
+            // Update with the complete schema
             interfaceNameDefinitions.set(definition, blockSchema)
             blockSchema = {
               $ref: `#/definitions/${definition}`,
@@ -1216,7 +1322,13 @@ export function configToJSONSchema(
     properties: {},
     required: [],
   }
+
+  // GlobalBlocks union type - union of all blocks in config.blocks
+  let globalBlocksDefinition: JSONSchema4 | undefined = undefined
+
   if (config?.blocks?.length) {
+    const globalBlockRefs: JSONSchema4[] = []
+
     for (const block of config.blocks) {
       const blockFieldSchemas = fieldsToJSONSchema(
         collectionIDFieldTypes,
@@ -1245,6 +1357,18 @@ export function configToJSONSchema(
         $ref: `#/definitions/${interfaceName}`,
       }
       ;(blocksDefinition.required as string[]).push(block.slug)
+
+      // Add to GlobalBlocks union
+      globalBlockRefs.push({
+        $ref: `#/definitions/${interfaceName}`,
+      })
+    }
+
+    // Create GlobalBlocks union type
+    if (globalBlockRefs.length > 0) {
+      globalBlocksDefinition = {
+        oneOf: globalBlockRefs,
+      }
     }
   }
 
@@ -1255,6 +1379,7 @@ export function configToJSONSchema(
       ...entityDefinitions,
       ...Object.fromEntries(interfaceNameDefinitions),
       ...authOperationDefinitions,
+      ...(globalBlocksDefinition ? { GlobalBlocks: globalBlocksDefinition } : {}),
     },
     // These properties here will be very simple, as all the complexity is in the definitions. These are just the properties for the top-level `Config` type
     type: 'object',

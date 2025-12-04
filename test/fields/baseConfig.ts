@@ -125,6 +125,22 @@ export const baseConfig: Partial<Config> = {
         },
       ],
     },
+    {
+      slug: 'globalBlockWithValidation',
+      fields: [
+        {
+          name: 'validatedText',
+          type: 'text',
+          required: true,
+          validate: (value: null | string | undefined) => {
+            if (value === 'invalid') {
+              return 'This value is not allowed'
+            }
+            return true
+          },
+        },
+      ],
+    },
   ],
   custom: {
     client: {

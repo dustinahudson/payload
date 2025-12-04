@@ -33,6 +33,24 @@ export const buildFieldSchemaMap = (args: {
 
   const schemaMap: FieldSchemaMap = new Map()
 
+  // Build global block schemas first to avoid infinite recursion
+  // These are built once and referenced by BlocksFields with blockReferences
+  if (config.blocks?.length) {
+    for (const block of config.blocks) {
+      const blockSchemaPath = `__global_blocks__.${block.slug}`
+      schemaMap.set(blockSchemaPath, block)
+
+      traverseFields({
+        config,
+        fields: block.fields,
+        i18n,
+        parentIndexPath: '',
+        parentSchemaPath: blockSchemaPath,
+        schemaMap,
+      })
+    }
+  }
+
   if (collectionSlug) {
     const matchedCollection = config.collections.find(
       (collection) => collection.slug === collectionSlug,

@@ -9,6 +9,7 @@ import { MissingEditorProp } from '../../../errors/index.js'
 import { type RequestContext, validateBlocksFilterOptions } from '../../../index.js'
 import { deepMergeWithSourceArrays } from '../../../utilities/deepMerge.js'
 import { getTranslatedLabel } from '../../../utilities/getTranslatedLabel.js'
+import { resolveBlock } from '../../../utilities/resolveBlock.js'
 import { fieldAffectsData, fieldShouldBeLocalized, tabHasName } from '../../config/types.js'
 import { getFieldPathsModified as getFieldPaths } from '../../getFieldPaths.js'
 import { getExistingRowDoc } from './getExistingRowDoc.js'
@@ -219,16 +220,13 @@ export const promise = async ({
             for (const block of siblingData[field.name] as JsonObject[]) {
               rowIndex++
               if (validationResult.invalidBlockSlugs.includes(block.blockType as string)) {
-                const blockConfigOrSlug = (field.blockReferences ?? field.blocks).find(
-                  (blockFromField) =>
-                    typeof blockFromField === 'string'
-                      ? blockFromField === block.blockType
-                      : blockFromField.slug === block.blockType,
-                ) as Block | undefined
                 const blockConfig =
-                  typeof blockConfigOrSlug !== 'string'
-                    ? blockConfigOrSlug
-                    : req.payload.config?.blocks?.[blockConfigOrSlug]
+                  req.payload.blocks[block.blockType as string] ??
+                  resolveBlock({
+                    blockType: block.blockType as string,
+                    field,
+                    payload: req.payload,
+                  })
 
                 const blockLabelPath =
                   field?.label === false
@@ -359,9 +357,11 @@ export const promise = async ({
 
           const block: Block | undefined =
             req.payload.blocks[blockTypeToMatch] ??
-            ((field.blockReferences ?? field.blocks).find(
-              (curBlock) => typeof curBlock !== 'string' && curBlock.slug === blockTypeToMatch,
-            ) as Block | undefined)
+            resolveBlock({
+              blockType: blockTypeToMatch,
+              field,
+              payload: req.payload,
+            })
 
           const blockLabelPath =
             field?.label === false

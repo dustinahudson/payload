@@ -18,7 +18,15 @@ export const BlocksCell: React.FC<BlocksCellProps> = ({
 
   const selectedBlocks = Array.isArray(cellData) ? cellData.map(({ blockType }) => blockType) : []
 
-  const translatedBlockLabels = (blockReferences ?? blocks)?.map((b) => {
+  // Handle blockReferences which can be 'GlobalBlocks' or an array
+  let blocksToProcess: ((typeof blocks)[number] | string)[] = blocks
+  if (blockReferences === 'GlobalBlocks') {
+    blocksToProcess = Object.keys(config.blocksMap)
+  } else if (Array.isArray(blockReferences)) {
+    blocksToProcess = blockReferences
+  }
+
+  const translatedBlockLabels = blocksToProcess?.map((b) => {
     const block = typeof b === 'string' ? config.blocksMap[b] : b
     return {
       slug: block.slug,

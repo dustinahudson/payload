@@ -14,6 +14,7 @@ import type { AfterReadArgs } from './index.js'
 
 import { MissingEditorProp } from '../../../errors/index.js'
 import { getBlockSelect } from '../../../utilities/getBlockSelect.js'
+import { resolveBlock } from '../../../utilities/resolveBlock.js'
 import { stripUnselectedFields } from '../../../utilities/stripUnselectedFields.js'
 import { fieldAffectsData, fieldShouldBeLocalized, tabHasName } from '../../config/types.js'
 import { getDefaultValue } from '../../getDefaultValue.js'
@@ -512,9 +513,11 @@ export const promise = async ({
 
           const block: Block | undefined =
             req.payload.blocks[blockTypeToMatch] ??
-            ((field.blockReferences ?? field.blocks).find(
-              (curBlock) => typeof curBlock !== 'string' && curBlock.slug === blockTypeToMatch,
-            ) as Block | undefined)
+            resolveBlock({
+              blockType: blockTypeToMatch,
+              field,
+              payload: req.payload,
+            })
 
           const { blockSelect, blockSelectMode } = getBlockSelect({
             block: block!,
@@ -565,9 +568,11 @@ export const promise = async ({
 
               const block: Block | undefined =
                 req.payload.blocks[blockTypeToMatch] ??
-                ((field.blockReferences ?? field.blocks).find(
-                  (curBlock) => typeof curBlock !== 'string' && curBlock.slug === blockTypeToMatch,
-                ) as Block | undefined)
+                resolveBlock({
+                  blockType: blockTypeToMatch,
+                  field,
+                  payload: req.payload,
+                })
 
               if (block) {
                 traverseFields({

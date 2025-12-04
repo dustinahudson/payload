@@ -6,6 +6,7 @@ import type { JsonObject, JsonValue, PayloadRequest } from '../../../types/index
 import type { Block, Field, TabAsField } from '../../config/types.js'
 
 import { MissingEditorProp } from '../../../errors/index.js'
+import { resolveBlock } from '../../../utilities/resolveBlock.js'
 import { fieldAffectsData, tabHasName, valueIsValueWithRelation } from '../../config/types.js'
 import { getFieldPathsModified as getFieldPaths } from '../../getFieldPaths.js'
 import { getExistingRowDoc } from '../beforeChange/getExistingRowDoc.js'
@@ -390,9 +391,11 @@ export const promise = async <T>({
 
           const block: Block | undefined =
             req.payload.blocks[blockTypeToMatch] ??
-            ((field.blockReferences ?? field.blocks).find(
-              (curBlock) => typeof curBlock !== 'string' && curBlock.slug === blockTypeToMatch,
-            ) as Block | undefined)
+            resolveBlock({
+              blockType: blockTypeToMatch,
+              field,
+              payload: req.payload,
+            })
 
           if (block) {
             ;(row as JsonObject).blockType = blockTypeToMatch

@@ -60,28 +60,79 @@ export const traverseFields = ({
       }
 
       case 'blocks':
-        ;(field.blockReferences ?? field.blocks).map((_block) => {
-          const block =
-            typeof _block === 'string'
-              ? config.blocksMap
-                ? config.blocksMap[_block]
-                : config.blocks.find((block) => typeof block !== 'string' && block.slug === _block)
-              : _block
+        {
+          // Only traverse inline blocks, not referenced blocks
+          // Referenced blocks (from blockReferences) are built separately to avoid infinite recursion
+          if (field.blocks) {
+            field.blocks.map((block) => {
+              const blockSchemaPath = `${schemaPath}.${block.slug}`
 
-          const blockSchemaPath = `${schemaPath}.${block.slug}`
+              clientSchemaMap.set(blockSchemaPath, block)
+              traverseFields({
+                clientSchemaMap,
+                config,
+                fields: block.fields,
+                i18n,
+                parentIndexPath: '',
+                parentSchemaPath: blockSchemaPath,
+                payload,
+                schemaMap,
+              })
+            })
+          }
 
-          clientSchemaMap.set(blockSchemaPath, block)
-          traverseFields({
-            clientSchemaMap,
-            config,
-            fields: block.fields,
-            i18n,
-            parentIndexPath: '',
-            parentSchemaPath: blockSchemaPath,
-            payload,
-            schemaMap,
-          })
-        })
+          // For blockReferences, create references to pre-built global block schemas
+          if (field.blockReferences === 'GlobalBlocks') {
+            // Reference all global blocks
+            if (config.blocks) {
+              const inlineSlugs = new Set((field.blocks || []).map((b) => b.slug))
+              for (const globalBlock of config.blocks) {
+                if (!inlineSlugs.has(globalBlock.slug)) {
+                  // Create a reference to the pre-built global block schema
+                  const blockSchemaPath = `${schemaPath}.${globalBlock.slug}`
+                  const globalBlockSchemaPath = `__global_blocks__.${globalBlock.slug}`
+
+                  // Reference the global block schema instead of rebuilding it
+                  const globalBlockSchema = clientSchemaMap.get(globalBlockSchemaPath)
+                  if (globalBlockSchema) {
+                    clientSchemaMap.set(blockSchemaPath, globalBlockSchema)
+                  }
+                }
+              }
+            }
+          } else if (Array.isArray(field.blockReferences)) {
+            // Reference specific blocks by slug or process inline block objects
+            const inlineSlugs = new Set((field.blocks || []).map((b) => b.slug))
+            for (const ref of field.blockReferences) {
+              const slug = typeof ref === 'string' ? ref : ref.slug
+              if (!inlineSlugs.has(slug)) {
+                const blockSchemaPath = `${schemaPath}.${slug}`
+
+                if (typeof ref === 'string') {
+                  // String reference - look up in global blocks
+                  const globalBlockSchemaPath = `__global_blocks__.${slug}`
+                  const globalBlockSchema = clientSchemaMap.get(globalBlockSchemaPath)
+                  if (globalBlockSchema) {
+                    clientSchemaMap.set(blockSchemaPath, globalBlockSchema)
+                  }
+                } else {
+                  // Inline block object - process it like blocks in field.blocks
+                  clientSchemaMap.set(blockSchemaPath, ref)
+                  traverseFields({
+                    clientSchemaMap,
+                    config,
+                    fields: ref.fields,
+                    i18n,
+                    parentIndexPath: '',
+                    parentSchemaPath: blockSchemaPath,
+                    payload,
+                    schemaMap,
+                  })
+                }
+              }
+            }
+          }
+        }
 
         break
 

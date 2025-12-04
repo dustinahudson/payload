@@ -135,14 +135,35 @@ const BlocksFieldComponent: BlocksFieldClientComponent = (props) => {
 
   const { clientBlocks, clientBlocksAfterFilter } = useMemo(() => {
     let resolvedBlocks: ClientBlock[] = []
+    const inlineBlocks = blocks || []
 
     if (!blockReferences) {
-      resolvedBlocks = blocks
+      resolvedBlocks = inlineBlocks
+    } else if (blockReferences === 'GlobalBlocks') {
+      // Start with inline blocks (they have precedence)
+      resolvedBlocks = [...inlineBlocks]
+
+      // Add global blocks that don't conflict with inline blocks
+      const inlineSlugs = new Set(inlineBlocks.map((b) => b.slug))
+      const globalBlocks = config.blocks || []
+
+      for (const globalBlock of globalBlocks) {
+        if (!inlineSlugs.has(globalBlock.slug)) {
+          resolvedBlocks.push(globalBlock)
+        }
+      }
     } else {
+      // blockReferences is an array of ClientBlock or string slugs
+      // Start with inline blocks (they have precedence)
+      const inlineSlugs = new Set(inlineBlocks.map((b) => b.slug))
+      resolvedBlocks = [...inlineBlocks]
+
+      // Add referenced blocks that don't conflict with inline blocks
       for (const blockReference of blockReferences) {
+        // blockReference can be a ClientBlock (already processed) or a string slug
         const block =
-          typeof blockReference === 'string' ? config.blocksMap[blockReference] : blockReference
-        if (block) {
+          typeof blockReference === 'string' ? config.blocksMap?.[blockReference] : blockReference
+        if (block && !inlineSlugs.has(block.slug)) {
           resolvedBlocks.push(block)
         }
       }
@@ -163,7 +184,7 @@ const BlocksFieldComponent: BlocksFieldClientComponent = (props) => {
       clientBlocks: resolvedBlocks,
       clientBlocksAfterFilter: resolvedBlocks,
     }
-  }, [blockReferences, blocks, blocksFilterOptions, config.blocksMap])
+  }, [blockReferences, blocks, blocksFilterOptions, config.blocks, config.blocksMap])
 
   const addRow = useCallback(
     (rowIndex: number, blockType: string) => {

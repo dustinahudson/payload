@@ -283,7 +283,12 @@ export const traverseFields = ({
           break
         }
 
-        ;(field.blockReferences ?? field.blocks).forEach((_block) => {
+        const blocksToProcess =
+          field.blockReferences === 'GlobalBlocks'
+            ? (adapter.payload.config.blocks ?? [])
+            : (field.blockReferences ?? field.blocks)
+
+        blocksToProcess.forEach((_block) => {
           const block = typeof _block === 'string' ? adapter.payload.blocks[_block] : _block
           const blockKey = `_blocks_${block.slug}${!block[InternalBlockTableNameIndex] ? '' : `_${block[InternalBlockTableNameIndex]}`}`
 

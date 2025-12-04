@@ -170,11 +170,21 @@ export const renderField: RenderFieldMethod = ({
 
         const blockTypeToMatch: string = row.blockType
 
-        const blockConfig =
-          req.payload.blocks[blockTypeToMatch] ??
-          ((fieldConfig.blockReferences ?? fieldConfig.blocks).find(
+        // Handle blockReferences which can be 'GlobalBlocks' or an array
+        let blockConfig = req.payload.blocks[blockTypeToMatch]
+
+        if (!blockConfig) {
+          const blocksToSearch =
+            fieldConfig.blockReferences === 'GlobalBlocks'
+              ? Object.keys(req.payload.blocks)
+              : Array.isArray(fieldConfig.blockReferences)
+                ? fieldConfig.blockReferences
+                : fieldConfig.blocks
+
+          blockConfig = blocksToSearch.find(
             (block) => typeof block !== 'string' && block.slug === blockTypeToMatch,
-          ) as FlattenedBlock | undefined)
+          ) as FlattenedBlock | undefined
+        }
 
         if (blockConfig.admin?.components && 'Label' in blockConfig.admin.components) {
           if (!fieldState.rows[rowIndex]?.customComponents) {

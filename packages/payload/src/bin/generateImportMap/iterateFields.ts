@@ -42,6 +42,7 @@ export function genImportMapIterateFields({
         imports,
       })
     } else if (field.type === 'blocks') {
+      // Iterate through inline blocks in field.blocks
       genImportMapIterateFields({
         addToImportMap,
         baseDir,
@@ -50,6 +51,21 @@ export function genImportMapIterateFields({
         importMap,
         imports,
       })
+
+      // Iterate through inline blocks in field.blockReferences (not slug references)
+      if (Array.isArray(field.blockReferences)) {
+        const inlineBlockReferences = field.blockReferences.filter((ref) => typeof ref !== 'string')
+        if (inlineBlockReferences.length > 0) {
+          genImportMapIterateFields({
+            addToImportMap,
+            baseDir,
+            config,
+            fields: inlineBlockReferences,
+            importMap,
+            imports,
+          })
+        }
+      }
     } else if (field.type === 'tabs') {
       genImportMapIterateFields({
         addToImportMap,

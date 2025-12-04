@@ -20,7 +20,12 @@ import type {
 } from 'payload'
 
 import ObjectIdImport from 'bson-objectid'
-import { getBlockSelect, stripUnselectedFields, validateBlocksFilterOptions } from 'payload'
+import {
+  getBlockSelect,
+  resolveBlock,
+  stripUnselectedFields,
+  validateBlocksFilterOptions,
+} from 'payload'
 import {
   deepCopyObjectSimple,
   fieldAffectsData,
@@ -433,11 +438,13 @@ export const addFieldStatePromise = async (args: AddFieldStatePromiseArgs): Prom
           (acc, row, i: number) => {
             const blockTypeToMatch: string = row.blockType
 
-            const block =
-              req.payload.blocks[blockTypeToMatch] ??
-              ((field.blockReferences ?? field.blocks).find(
-                (blockType) => typeof blockType !== 'string' && blockType.slug === blockTypeToMatch,
-              ) as FlattenedBlock | undefined)
+            // Use resolveBlock utility to find block config
+            // This handles precedence: inline blocks first, then global blocks
+            const block = resolveBlock({
+              blockType: blockTypeToMatch,
+              field,
+              payload: req.payload,
+            })
 
             if (!block) {
               throw new Error(
@@ -526,6 +533,23 @@ export const addFieldStatePromise = async (args: AddFieldStatePromiseArgs): Prom
                 }
               }
 
+              // Determine the correct schema path for this block
+              // A block is "inline" if:
+              // 1. It's defined in field.blocks
+              // 2. It's a non-string in blockReferences (inline block object)
+              // A block is "global" if:
+              // 1. It's referenced by string slug (even if we're inside another global block)
+              const isInlineBlock =
+                field.blocks.some((b) => b.slug === block.slug) ||
+                (Array.isArray(field.blockReferences) &&
+                  field.blockReferences.some(
+                    (ref) => typeof ref !== 'string' && ref.slug === block.slug,
+                  ))
+
+              const blockSchemaPath = isInlineBlock
+                ? schemaPath + '.' + block.slug
+                : '__global_blocks__.' + block.slug
+
               acc.promises.push(
                 iterateFields({
                   id,
@@ -547,7 +571,7 @@ export const addFieldStatePromise = async (args: AddFieldStatePromiseArgs): Prom
                   parentIndexPath: '',
                   parentPassesCondition: passesCondition,
                   parentPath,
-                  parentSchemaPath: schemaPath + '.' + block.slug,
+                  parentSchemaPath: blockSchemaPath,
                   permissions:
                     fieldPermissions === true
                       ? fieldPermissions

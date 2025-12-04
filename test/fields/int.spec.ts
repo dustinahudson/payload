@@ -3063,6 +3063,53 @@ describe('Fields', () => {
       )
       expect(doc?.localizedReferencesLocalizedBlock?.en?.[0]?.text).toEqual('localized text')
     })
+
+    it('should validate fields in global blocks referenced via blockReferences', async () => {
+      // Test that required validation works for global blocks
+      await expect(async () =>
+        payload.create({
+          collection: blockFieldsSlug,
+          data: {
+            globalBlocksWithValidation: [
+              {
+                blockType: 'globalBlockWithValidation',
+                validatedText: '', // Empty string should fail required validation
+              },
+            ],
+          },
+        }),
+      ).rejects.toThrow('The following field is invalid: validatedText')
+
+      // Test that custom validation works for global blocks
+      await expect(async () =>
+        payload.create({
+          collection: blockFieldsSlug,
+          data: {
+            globalBlocksWithValidation: [
+              {
+                blockType: 'globalBlockWithValidation',
+                validatedText: 'invalid', // Should fail custom validation
+              },
+            ],
+          },
+        }),
+      ).rejects.toThrow('This value is not allowed')
+
+      // Test that valid data passes validation
+      const validDoc = await payload.create({
+        collection: blockFieldsSlug,
+        data: {
+          globalBlocksWithValidation: [
+            {
+              blockType: 'globalBlockWithValidation',
+              validatedText: 'valid text',
+            },
+          ],
+        },
+      })
+
+      expect(validDoc.globalBlocksWithValidation[0].validatedText).toEqual('valid text')
+    })
   })
 
   describe('collapsible', () => {

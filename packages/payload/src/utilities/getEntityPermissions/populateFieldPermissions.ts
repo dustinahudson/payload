@@ -31,7 +31,7 @@ const setPermission = (
   if (isThenable(value)) {
     // Create a single permission object that will be mutated in place
     // This ensures all references (including cached blocks) see the resolved value
-    const permissionObj = { permission: value as any }
+    const permissionObj = { permission: value as unknown }
     target[operation] = permissionObj
 
     const permissionPromise = value.then((result) => {
@@ -57,6 +57,7 @@ export const populateFieldPermissions = ({
   operations,
   parentPermissionsObject,
   permissionsObject,
+  processedBlockSlugs = new Set<string>(),
   promises,
   req,
 }: {
@@ -70,6 +71,7 @@ export const populateFieldPermissions = ({
   operations: AllOperations[]
   parentPermissionsObject: CollectionPermission | FieldPermissions | GlobalPermission
   permissionsObject: FieldsPermissions
+  processedBlockSlugs?: Set<string>
   promises: Promise<void>[]
   req: PayloadRequest
 }): void => {
@@ -133,6 +135,7 @@ export const populateFieldPermissions = ({
           operations,
           parentPermissionsObject: fieldPermissions,
           permissionsObject: fieldPermissions.fields,
+          processedBlockSlugs,
           promises,
           req,
         })
@@ -140,12 +143,42 @@ export const populateFieldPermissions = ({
 
       if (
         ('blocks' in field && field.blocks?.length) ||
-        ('blockReferences' in field && field.blockReferences?.length)
+        ('blockReferences' in field && field.blockReferences)
       ) {
         if (!fieldPermissions.blocks) {
           fieldPermissions.blocks = {}
         }
         const blocksPermissions: BlocksPermissions = fieldPermissions.blocks
+
+        // Determine which blocks to process
+        type BlockOrSlug = { fields?: unknown; slug: string } | string
+        let blocksToProcess: BlockOrSlug[] = []
+
+        // Always include inline blocks first (they have precedence)
+        if ('blocks' in field && field.blocks?.length) {
+          blocksToProcess = [...field.blocks]
+        }
+
+        // Add referenced blocks
+        if ('blockReferences' in field && field.blockReferences) {
+          if (field.blockReferences === 'GlobalBlocks') {
+            // Include all global blocks (excluding those already defined inline)
+            const inlineSlugs = new Set(field.blocks?.map((b) => b.slug) ?? [])
+            const globalBlockSlugs =
+              req.payload.config.blocks
+                ?.filter((b) => !inlineSlugs.has(b.slug))
+                .map((b) => b.slug) ?? []
+            blocksToProcess = [...blocksToProcess, ...globalBlockSlugs]
+          } else {
+            // Add the specified block references (excluding those already defined inline)
+            const inlineSlugs = new Set(field.blocks?.map((b) => b.slug) ?? [])
+            const referencedBlocks = field.blockReferences.filter((ref) => {
+              const slug = typeof ref === 'string' ? ref : ref.slug
+              return !inlineSlugs.has(slug)
+            })
+            blocksToProcess = [...blocksToProcess, ...referencedBlocks]
+          }
+        }
 
         // Set up permissions for all operations for all blocks
         for (const operation of operations) {
@@ -158,7 +191,7 @@ export const populateFieldPermissions = ({
             parentPermissionsObject[operation as keyof typeof parentPermissionsObject] as Permission
           )?.permission
 
-          for (const _block of field.blockReferences ?? field.blocks) {
+          for (const _block of blocksToProcess) {
             const block = typeof _block === 'string' ? req.payload.blocks[_block] : _block
 
             // Skip if block doesn't exist (invalid block reference)
@@ -195,15 +228,39 @@ export const populateFieldPermissions = ({
         }
 
         // Process nested content for each unique block (once per block, not once per operation)
-        const processedBlocks = new Set<string>()
-        for (const _block of field.blockReferences ?? field.blocks) {
+        // Create a new set for tracking blocks processed within THIS blocks field
+        // This prevents infinite recursion when blocks reference each other
+        const localProcessedBlockSlugs = new Set<string>()
+
+        for (const _block of blocksToProcess) {
           const block = typeof _block === 'string' ? req.payload.blocks[_block] : _block
 
-          // Skip if block doesn't exist (invalid block reference)
-          if (!block || processedBlocks.has(block.slug)) {
+          // Skip if block doesn't exist
+          if (!block) {
             continue
           }
-          processedBlocks.add(block.slug)
+
+          // For global blocks (referenced by string), check if we've already processed this block globally
+          // This prevents infinite recursion when blocks reference each other
+          if (typeof _block === 'string') {
+            // If we've already created permissions for this global block, reuse them
+            if (blockReferencesPermissions[_block]) {
+              // Already processed - the permissions are already set above, just skip field processing
+              continue
+            }
+            // Mark as being processed before recursing
+            const blockPermission = blocksPermissions[block.slug]
+            if (blockPermission) {
+              blockReferencesPermissions[_block] = blockPermission
+            }
+          }
+
+          // Check if we've processed this block in the current blocks field
+          // This prevents infinite recursion within a single blocks field's hierarchy
+          if (localProcessedBlockSlugs.has(block.slug)) {
+            continue
+          }
+          localProcessedBlockSlugs.add(block.slug)
 
           const blockPermission = blocksPermissions[block.slug]
           if (!blockPermission) {
@@ -214,13 +271,13 @@ export const populateFieldPermissions = ({
             blockPermission.fields = {}
           }
 
-          // Handle block references with caching - store as promise that will be resolved later
-          if (typeof _block === 'string' && !blockReferencesPermissions[_block]) {
-            // Mark this block as being processed by storing a reference
-            blockReferencesPermissions[_block] = blockPermission
+          // Skip if block doesn't have fields array
+          if (!block.fields || !Array.isArray(block.fields)) {
+            continue
           }
 
-          // Recursively process block fields synchronously
+          // Recursively process block fields with a fresh processedBlockSlugs set
+          // This allows the same block to be processed in different contexts
           populateFieldPermissions({
             id,
             blockReferencesPermissions,
@@ -229,6 +286,7 @@ export const populateFieldPermissions = ({
             operations,
             parentPermissionsObject: blockPermission,
             permissionsObject: blockPermission.fields,
+            processedBlockSlugs: new Set<string>(),
             promises,
             req,
           })
@@ -248,6 +306,7 @@ export const populateFieldPermissions = ({
         // Field does not have a name here => use parent permissions object
         parentPermissionsObject,
         permissionsObject,
+        processedBlockSlugs,
         promises,
         req,
       })
@@ -297,6 +356,7 @@ export const populateFieldPermissions = ({
             operations,
             parentPermissionsObject: tabPermissions,
             permissionsObject: tabPermissions.fields,
+            processedBlockSlugs,
             promises,
             req,
           })
@@ -311,6 +371,7 @@ export const populateFieldPermissions = ({
             // Tab does not have a name here => use parent permissions object
             parentPermissionsObject,
             permissionsObject,
+            processedBlockSlugs,
             promises,
             req,
           })

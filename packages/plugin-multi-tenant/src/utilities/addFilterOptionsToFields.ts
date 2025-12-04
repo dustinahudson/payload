@@ -101,7 +101,12 @@ export function addFilterOptionsToFields<ConfigType = unknown>({
 
     if (newField.type === 'blocks') {
       const newBlocks: Block[] = []
-      ;(newField.blockReferences ?? newField.blocks).forEach((_block) => {
+      const blocksToProcess =
+        newField.blockReferences === 'GlobalBlocks'
+          ? (config?.blocks ?? [])
+          : (newField.blockReferences ?? newField.blocks)
+
+      blocksToProcess.forEach((_block) => {
         let block: Block | undefined
         let isReference = false
 

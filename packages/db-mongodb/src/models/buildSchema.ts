@@ -248,14 +248,15 @@ const blocks: FieldSchemaGenerator<BlocksField> = (
       parentIsLocalized,
     ),
   })
-  ;(field.blockReferences ?? field.blocks).forEach((blockItem) => {
+
+  // Collect all block slugs and their schemas
+  // Map to track which blocks we've already added (for precedence handling)
+  const processedSlugs = new Set<string>()
+  const blocksToAdd: Array<{ isInline: boolean; schema: mongoose.Schema; slug: string }> = []
+
+  // STEP 1: Process inline blocks first (they have precedence)
+  field.blocks.forEach((block) => {
     const blockSchema = new mongoose.Schema({}, { _id: false, id: false })
-
-    const block = typeof blockItem === 'string' ? payload.blocks[blockItem] : blockItem
-
-    if (!block) {
-      return
-    }
 
     block.fields.forEach((blockField) => {
       const addFieldSchema = getSchemaGenerator(blockField.type)
@@ -271,14 +272,80 @@ const blocks: FieldSchemaGenerator<BlocksField> = (
       }
     })
 
+    blocksToAdd.push({ slug: block.slug, isInline: true, schema: blockSchema })
+    processedSlugs.add(block.slug)
+  })
+
+  // STEP 2: Process referenced blocks from blockReferences
+  if (field.blockReferences) {
+    // Get the global block schemas from the database adapter
+    const globalBlockSchemas = payload.db.globalBlockSchemas
+
+    if (field.blockReferences === 'GlobalBlocks') {
+      // Include all global blocks
+      if (payload.config.blocks) {
+        payload.config.blocks.forEach((block) => {
+          // Skip if inline block with same slug exists (precedence)
+          if (!processedSlugs.has(block.slug)) {
+            const preBuiltSchema = globalBlockSchemas.get(block.slug)
+            if (preBuiltSchema) {
+              blocksToAdd.push({ slug: block.slug, isInline: false, schema: preBuiltSchema })
+              processedSlugs.add(block.slug)
+            }
+          }
+        })
+      }
+    } else if (Array.isArray(field.blockReferences)) {
+      // Include specific blocks by slug
+      field.blockReferences.forEach((blockRef) => {
+        const slug = typeof blockRef === 'string' ? blockRef : blockRef.slug
+
+        // Skip if inline block with same slug exists (precedence)
+        if (!processedSlugs.has(slug)) {
+          // First check if it's an inline block definition
+          if (typeof blockRef !== 'string') {
+            // It's an inline Block object, build its schema
+            const blockSchema = new mongoose.Schema({}, { _id: false, id: false })
+
+            blockRef.fields.forEach((blockField) => {
+              const addFieldSchema = getSchemaGenerator(blockField.type)
+
+              if (addFieldSchema) {
+                addFieldSchema(
+                  blockField,
+                  blockSchema,
+                  payload,
+                  buildSchemaOptions,
+                  (parentIsLocalized || field.localized) ?? false,
+                )
+              }
+            })
+
+            blocksToAdd.push({ slug, isInline: true, schema: blockSchema })
+            processedSlugs.add(slug)
+          } else {
+            // It's a string slug, reference the pre-built global block schema
+            const preBuiltSchema = globalBlockSchemas.get(slug)
+            if (preBuiltSchema) {
+              blocksToAdd.push({ slug, isInline: false, schema: preBuiltSchema })
+              processedSlugs.add(slug)
+            }
+          }
+        }
+      })
+    }
+  }
+
+  // STEP 3: Add all collected blocks as discriminators
+  blocksToAdd.forEach(({ slug, schema: blockSchema }) => {
     if (fieldShouldBeLocalized({ field, parentIsLocalized }) && payload.config.localization) {
       payload.config.localization.localeCodes.forEach((localeCode) => {
         // @ts-expect-error Possible incorrect typing in mongoose types, this works
-        schema.path(`${field.name}.${localeCode}`).discriminator(block.slug, blockSchema)
+        schema.path(`${field.name}.${localeCode}`).discriminator(slug, blockSchema)
       })
     } else {
       // @ts-expect-error Possible incorrect typing in mongoose types, this works
-      schema.path(field.name).discriminator(block.slug, blockSchema)
+      schema.path(field.name).discriminator(slug, blockSchema)
     }
   })
 }
@@ -670,7 +737,7 @@ const select: FieldSchemaGenerator<SelectField> = (
   buildSchemaOptions,
   parentIsLocalized,
 ): void => {
-  const baseSchema: SchemaTypeOptions<any> = {
+  const baseSchema: SchemaTypeOptions<unknown> = {
     ...formatBaseSchema({ buildSchemaOptions, field, parentIsLocalized }),
     type: String,
     enum: field.options.map((option) => {
@@ -790,7 +857,7 @@ const upload: FieldSchemaGenerator<UploadField> = (
   parentIsLocalized,
 ): void => {
   const hasManyRelations = Array.isArray(field.relationTo)
-  let schemaToReturn: { [key: string]: any } = {}
+  let schemaToReturn: { [key: string]: unknown } = {}
 
   const valueType = getRelationshipValueType(field, payload)
 
@@ -798,7 +865,7 @@ const upload: FieldSchemaGenerator<UploadField> = (
     schemaToReturn = {
       _id: false,
       type: payload.config.localization.localeCodes.reduce((locales, locale) => {
-        let localeSchema: { [key: string]: any } = {}
+        let localeSchema: { [key: string]: unknown } = {}
 
         if (hasManyRelations) {
           localeSchema = {
@@ -926,4 +993,55 @@ const getRelationshipValueType = (field: RelationshipField | UploadField, payloa
   }
 
   return mongoose.Schema.Types.ObjectId
+}
+
+/**
+ * Build MongoDB schemas for all global blocks defined in config.blocks
+ * Uses a two-pass approach to handle blocks that reference other blocks:
+ * 1. Create empty schemas for all blocks
+ * 2. Populate each schema with its fields
+ *
+ * This prevents infinite recursion when blocks contain BlocksFields that reference other blocks
+ */
+export const buildGlobalBlockSchemas = (
+  payload: Payload,
+  buildSchemaOptions: BuildSchemaOptions,
+): Map<string, mongoose.Schema> => {
+  const schemas = new Map<string, mongoose.Schema>()
+
+  if (!payload.config.blocks || payload.config.blocks.length === 0) {
+    return schemas
+  }
+
+  // PASS 1: Create empty schemas for all global blocks
+  // This ensures all block schemas exist before we try to reference them
+  for (const block of payload.config.blocks) {
+    const blockSchema = new mongoose.Schema({}, { _id: false, id: false })
+    schemas.set(block.slug, blockSchema)
+  }
+
+  // Note: The schemas are returned and will be stored on the adapter instance.
+  // They will be available via payload.db.globalBlockSchemas after the adapter is initialized.
+
+  // PASS 2: Populate each schema with its fields
+  // Now any block can safely reference any other block's schema
+  for (const block of payload.config.blocks) {
+    const blockSchema = schemas.get(block.slug)!
+
+    block.fields.forEach((field) => {
+      if (fieldIsVirtual(field)) {
+        return
+      }
+
+      if (!fieldIsPresentationalOnly(field)) {
+        const addFieldSchema = getSchemaGenerator(field.type)
+
+        if (addFieldSchema) {
+          addFieldSchema(field, blockSchema, payload, buildSchemaOptions, false)
+        }
+      }
+    })
+  }
+
+  return schemas
 }

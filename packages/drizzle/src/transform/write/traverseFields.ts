@@ -240,7 +240,12 @@ export const traverseFields = ({
     }
 
     if (field.type === 'blocks' && !adapter.blocksAsJSON) {
-      ;(field.blockReferences ?? field.blocks).forEach((block) => {
+      const blocksToProcess =
+        field.blockReferences === 'GlobalBlocks'
+          ? (adapter.payload.config.blocks ?? [])
+          : (field.blockReferences ?? field.blocks)
+
+      blocksToProcess.forEach((block) => {
         const matchedBlock =
           typeof block === 'string'
             ? adapter.payload.config.blocks.find((each) => each.slug === block)
