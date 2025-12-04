@@ -119,7 +119,14 @@ const BlocksFieldComponent: BlocksFieldClientComponent = (props) => {
 
   const {
     blocksFilterOptions,
-    customComponents: { AfterInput, BeforeInput, Description, Error, Label } = {},
+    customComponents: {
+      AfterInput,
+      BeforeInput,
+      Description,
+      Drawer: DrawerComponentRef,
+      Error,
+      Label,
+    } = {},
     disabled,
     errorPaths,
     path,
@@ -530,14 +537,33 @@ const BlocksFieldComponent: BlocksFieldClientComponent = (props) => {
               {t('fields:addLabel', { label: getTranslation(labels.singular, i18n) })}
             </Button>
           </DrawerToggler>
-          <BlocksDrawer
-            addRow={addRow}
-            addRowIndex={rows?.length || 0}
-            // Only allow choosing filtered blocks
-            blocks={clientBlocksAfterFilter}
-            drawerSlug={drawerSlug}
-            labels={labels}
-          />
+          {(() => {
+            // DrawerComponentRef is passed as ReactNode but is actually a component type
+            const CustomDrawer = DrawerComponentRef as unknown as React.ComponentType<any>
+
+            if (CustomDrawer && typeof CustomDrawer === 'function') {
+              return (
+                <CustomDrawer
+                  addRow={addRow}
+                  addRowIndex={rows?.length || 0}
+                  blocks={clientBlocksAfterFilter}
+                  drawerSlug={drawerSlug}
+                  labels={labels}
+                />
+              )
+            }
+
+            return (
+              <BlocksDrawer
+                addRow={addRow}
+                addRowIndex={rows?.length || 0}
+                // Only allow choosing filtered blocks
+                blocks={clientBlocksAfterFilter}
+                drawerSlug={drawerSlug}
+                labels={labels}
+              />
+            )
+          })()}
         </Fragment>
       )}
       {AfterInput}
