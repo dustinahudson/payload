@@ -156,6 +156,7 @@ export interface Args {
    * @default false
    */
   useAlternativeDropDatabase?: boolean
+
   /**
    * Set to `true` to use `BigInt` for custom ID fields of type `'number'`.
    * Useful for databases that don't support `double` or `int32` IDs.
@@ -255,6 +256,7 @@ export function mongooseAdapter({
   allowAdditionalKeys = false,
   allowIDOnCreate = false,
   autoPluralization = true,
+  collation,
   collectionsSchemaOptions = {},
   connectOptions,
   disableFallbackSort = false,
@@ -281,6 +283,7 @@ export function mongooseAdapter({
       afterCreateConnection,
       afterOpenConnection,
       autoPluralization,
+      collation,
       collections: {},
       // @ts-expect-error initialize without a connection
       connection: undefined,

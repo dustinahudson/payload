@@ -1026,6 +1026,8 @@ type SharedUploadPropertiesClient = FieldBaseClient &
 type UploadAdmin = {
   allowCreate?: boolean
   components?: {
+    afterInput?: CustomComponent[]
+    beforeInput?: CustomComponent[]
     Error?: CustomComponent<
       RelationshipFieldErrorClientComponent | RelationshipFieldErrorServerComponent
     >
