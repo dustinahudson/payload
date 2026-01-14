@@ -28,6 +28,60 @@ import {
 
 import { diffComponents } from './fields/index.js'
 
+/**
+ * Resolves a client field from the schema map, with lazy fallback to global blocks.
+ *
+ * For recursive/global blocks, the schema map only stores paths at `__global_blocks__.{blockSlug}.*`
+ * rather than duplicating paths for every usage site. This function handles the lazy resolution
+ * by checking if any segment in the schemaPath is a global block slug and resolving from there.
+ *
+ * Example: For schemaPath "content.container.title" where "container" is a global block:
+ * 1. First tries: "myCollection.content.container.title" (direct lookup)
+ * 2. Falls back to: "__global_blocks__.container.title" (global block lookup)
+ */
+function resolveClientField({
+  clientSchemaMap,
+  entitySlug,
+  globalBlockSlugs,
+  schemaPath,
+}: {
+  clientSchemaMap: ClientFieldSchemaMap
+  entitySlug: string
+  globalBlockSlugs: Set<string>
+  schemaPath: string
+}): ClientField | undefined {
+  // First, try direct lookup
+  const directKey = `${entitySlug}.${schemaPath}`
+  const directResult = clientSchemaMap.get(directKey)
+  if (directResult) {
+    return directResult as ClientField
+  }
+
+  // If not found, try to resolve via global blocks
+  // Parse the schemaPath to find global block slugs and resolve from __global_blocks__
+  const segments = schemaPath.split('.')
+
+  // Walk through segments looking for global block slugs
+  // When we find one, try to resolve the remaining path from __global_blocks__
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (globalBlockSlugs.has(segment)) {
+      // This segment is a global block slug
+      // The remaining path after this segment should be resolved from __global_blocks__
+      const remainingPath = segments.slice(i + 1).join('.')
+      if (remainingPath) {
+        const globalKey = `__global_blocks__.${segment}.${remainingPath}`
+        const globalResult = clientSchemaMap.get(globalKey)
+        if (globalResult) {
+          return globalResult as ClientField
+        }
+      }
+    }
+  }
+
+  return undefined
+}
+
 export type BuildVersionFieldsArgs = {
   clientSchemaMap: ClientFieldSchemaMap
   customDiffComponents: Partial<
@@ -79,6 +133,11 @@ export const buildVersionFields = ({
   const versionFields: VersionField[] = []
   let fieldIndex = -1
 
+  // Build set of global block slugs for lazy resolution
+  const globalBlockSlugs = new Set<string>(
+    req.payload.config.blocks?.map((block) => block.slug) ?? [],
+  )
+
   for (const field of fields) {
     fieldIndex++
 
@@ -94,7 +153,12 @@ export const buildVersionFields = ({
       parentSchemaPath,
     })
 
-    const clientField = clientSchemaMap.get(entitySlug + '.' + schemaPath)
+    const clientField = resolveClientField({
+      clientSchemaMap,
+      entitySlug,
+      globalBlockSlugs,
+      schemaPath,
+    })
 
     if (!clientField) {
       req.payload.logger.error({
@@ -122,7 +186,7 @@ export const buildVersionFields = ({
 
       for (const locale of selectedLocales) {
         const localizedVersionField = buildVersionField({
-          clientField: clientField as ClientField,
+          clientField,
           clientSchemaMap,
           customDiffComponents,
           entitySlug,
@@ -149,7 +213,7 @@ export const buildVersionFields = ({
       }
     } else {
       const baseVersionField = buildVersionField({
-        clientField: clientField as ClientField,
+        clientField,
         clientSchemaMap,
         customDiffComponents,
         entitySlug,

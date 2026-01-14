@@ -539,12 +539,13 @@ export const addFieldStatePromise = async (args: AddFieldStatePromiseArgs): Prom
               // 2. It's a non-string in blockReferences (inline block object)
               // A block is "global" if:
               // 1. It's referenced by string slug (even if we're inside another global block)
-              const isInlineBlock =
-                field.blocks.some((b) => b.slug === block.slug) ||
-                (Array.isArray(field.blockReferences) &&
-                  field.blockReferences.some(
-                    (ref) => typeof ref !== 'string' && ref.slug === block.slug,
-                  ))
+              const inFieldBlocks = field.blocks?.some((b) => b.slug === block.slug) ?? false
+              const inBlockRefsAsInline =
+                Array.isArray(field.blockReferences) &&
+                field.blockReferences.some(
+                  (ref) => typeof ref !== 'string' && ref.slug === block.slug,
+                )
+              const isInlineBlock = inFieldBlocks || inBlockRefsAsInline
 
               const blockSchemaPath = isInlineBlock
                 ? schemaPath + '.' + block.slug
@@ -571,7 +572,7 @@ export const addFieldStatePromise = async (args: AddFieldStatePromiseArgs): Prom
                   parentIndexPath: '',
                   parentPassesCondition: passesCondition,
                   parentPath: rowPath,
-                  parentSchemaPath: schemaPath + '.' + block.slug,
+                  parentSchemaPath: blockSchemaPath,
                   permissions:
                     fieldPermissions === true
                       ? fieldPermissions
