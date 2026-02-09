@@ -205,6 +205,15 @@ export const mergeServerFormState = ({
         if ('value' in incomingField && newState[path].rows.length !== incomingField.value) {
           newState[path].value = newState[path].rows.length
         }
+
+        // When accepting values (e.g. after a save), the server response is the
+        // source of truth for which rows exist. Remove any client-side rows whose IDs are
+        // not present in the server response. This prevents orphaned rows when external
+        // systems (e.g. platform APIs) assign new IDs to array items during save.
+        if (acceptValues) {
+          const incomingRowIds = new Set(incomingField.rows.map((row) => row.id))
+          newState[path].rows = newState[path].rows.filter((row) => incomingRowIds.has(row.id))
+        }
       }
     }
 
