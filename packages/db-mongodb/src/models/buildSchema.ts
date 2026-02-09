@@ -39,6 +39,8 @@ import {
   tabHasName,
 } from 'payload/shared'
 
+import type { MongooseAdapter } from '../index.js'
+
 export type BuildSchemaOptions = {
   allowIDField?: boolean
   disableUnique?: boolean
@@ -1030,8 +1032,10 @@ export const buildGlobalBlockSchemas = (
     schemas.set(block.slug, blockSchema)
   }
 
-  // Note: The schemas are returned and will be stored on the adapter instance.
-  // They will be available via payload.db.globalBlockSchemas after the adapter is initialized.
+  // Make schemas available on the adapter BEFORE pass 2 so that nested
+  // BlocksFields with blockReferences: 'GlobalBlocks' can look up sibling
+  // block schemas via payload.db.globalBlockSchemas during schema building.
+  ;(payload.db as MongooseAdapter).globalBlockSchemas = schemas
 
   // PASS 2: Populate each schema with its fields
   // Now any block can safely reference any other block's schema
