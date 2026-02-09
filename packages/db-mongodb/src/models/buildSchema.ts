@@ -1009,9 +1009,13 @@ const getRelationshipValueType = (field: RelationshipField | UploadField, payloa
 
 /**
  * Build MongoDB schemas for all global blocks defined in config.blocks
- * Uses a two-pass approach to handle blocks that reference other blocks:
+ * Uses a three-pass approach to handle blocks that reference other blocks:
  * 1. Create empty schemas for all blocks
- * 2. Populate each schema with its fields
+ * 2. Populate each schema with its fields (discriminators for blockReferences
+ *    are NOT registered here because Mongoose clones schemas at registration
+ *    time and the referenced schemas are not yet populated)
+ * 3. After all schemas are fully populated, register discriminators for any
+ *    blocks fields that use blockReferences
  *
  * This prevents infinite recursion when blocks contain BlocksFields that reference other blocks
  */
@@ -1032,13 +1036,15 @@ export const buildGlobalBlockSchemas = (
     schemas.set(block.slug, blockSchema)
   }
 
-  // Make schemas available on the adapter BEFORE pass 2 so that nested
-  // BlocksFields with blockReferences: 'GlobalBlocks' can look up sibling
-  // block schemas via payload.db.globalBlockSchemas during schema building.
-  ;(payload.db as MongooseAdapter).globalBlockSchemas = schemas
+  // NOTE: globalBlockSchemas is intentionally NOT set on the adapter before pass 2.
+  // During pass 2, the blocks schema generator reads payload.db.globalBlockSchemas
+  // to find pre-built schemas for blockReferences. Since it's still the initial
+  // empty Map, no discriminators are registered for blockReferences fields.
+  // This is correct — Mongoose clones schemas at discriminator registration time,
+  // so we must wait until all schemas are fully populated (after pass 2) before
+  // registering discriminators. Pass 3 handles this.
 
   // PASS 2: Populate each schema with its fields
-  // Now any block can safely reference any other block's schema
   for (const block of payload.config.blocks) {
     const blockSchema = schemas.get(block.slug)!
 
@@ -1057,5 +1063,176 @@ export const buildGlobalBlockSchemas = (
     })
   }
 
+  // Now make schemas available on the adapter — all schemas are fully populated
+  ;(payload.db as MongooseAdapter).globalBlockSchemas = schemas
+
+  // PASS 3: Register discriminators for blocks fields that use blockReferences
+  // within global blocks. Now that all schemas are fully populated, Mongoose will
+  // clone complete schemas when registering discriminators.
+  for (const block of payload.config.blocks) {
+    const blockSchema = schemas.get(block.slug)!
+    registerBlockReferenceDiscriminators({
+      fields: block.fields,
+      globalBlockSchemas: schemas,
+      parentIsLocalized: false,
+      parentSchema: blockSchema,
+      payload,
+    })
+  }
+
   return schemas
+}
+
+/**
+ * Recursively traverses fields within a global block schema and registers
+ * Mongoose discriminators for any blocks fields that use blockReferences.
+ * This must be called after all global block schemas are fully populated.
+ */
+function registerBlockReferenceDiscriminators({
+  fields,
+  globalBlockSchemas,
+  parentIsLocalized,
+  parentSchema,
+  payload,
+}: {
+  fields: Field[]
+  globalBlockSchemas: Map<string, mongoose.Schema>
+  parentIsLocalized: boolean
+  parentSchema: mongoose.Schema
+  payload: Payload
+}): void {
+  for (const field of fields) {
+    if (fieldIsVirtual(field)) {
+      continue
+    }
+    if (fieldIsPresentationalOnly(field)) {
+      continue
+    }
+
+    // Register discriminators for blocks fields with blockReferences
+    if (field.type === 'blocks' && field.blockReferences) {
+      const isLocalized = fieldShouldBeLocalized({ field, parentIsLocalized })
+      const inlineSlugs = new Set(field.blocks.map((b) => b.slug))
+      const blocksToRegister: Array<{ schema: mongoose.Schema; slug: string }> = []
+
+      if (field.blockReferences === 'GlobalBlocks') {
+        for (const block of payload.config.blocks ?? []) {
+          if (!inlineSlugs.has(block.slug)) {
+            const preBuiltSchema = globalBlockSchemas.get(block.slug)
+            if (preBuiltSchema) {
+              blocksToRegister.push({ slug: block.slug, schema: preBuiltSchema })
+            }
+          }
+        }
+      } else if (Array.isArray(field.blockReferences)) {
+        for (const ref of field.blockReferences) {
+          // Only handle string references — inline block objects were already
+          // registered as discriminators during pass 2
+          if (typeof ref === 'string' && !inlineSlugs.has(ref)) {
+            const preBuiltSchema = globalBlockSchemas.get(ref)
+            if (preBuiltSchema) {
+              blocksToRegister.push({ slug: ref, schema: preBuiltSchema })
+            }
+          }
+        }
+      }
+
+      for (const { slug, schema } of blocksToRegister) {
+        if (isLocalized && payload.config.localization) {
+          payload.config.localization.localeCodes.forEach((localeCode) => {
+            // @ts-expect-error Possible incorrect typing in mongoose types, this works
+            parentSchema.path(`${field.name}.${localeCode}`).discriminator(slug, schema)
+          })
+        } else {
+          // @ts-expect-error Possible incorrect typing in mongoose types, this works
+          parentSchema.path(field.name).discriminator(slug, schema)
+        }
+      }
+      continue
+    }
+
+    // Recurse into transparent container fields (no own schema namespace)
+    if (field.type === 'row' || field.type === 'collapsible') {
+      registerBlockReferenceDiscriminators({
+        fields: field.fields,
+        globalBlockSchemas,
+        parentIsLocalized,
+        parentSchema,
+        payload,
+      })
+      continue
+    }
+
+    // Recurse into tabs
+    if (field.type === 'tabs') {
+      for (const tab of field.tabs) {
+        const tabLocalized = parentIsLocalized || (tab.localized ?? false)
+        if (tabHasName(tab)) {
+          // Named tabs create their own sub-schema
+          const tabPath = parentSchema.path(tab.name)
+          if (tabPath && 'schema' in tabPath) {
+            registerBlockReferenceDiscriminators({
+              fields: tab.fields,
+              globalBlockSchemas,
+              parentIsLocalized: tabLocalized,
+              parentSchema: (tabPath as any).schema,
+              payload,
+            })
+          }
+        } else {
+          // Unnamed tabs are transparent — fields live on parentSchema
+          registerBlockReferenceDiscriminators({
+            fields: tab.fields,
+            globalBlockSchemas,
+            parentIsLocalized: tabLocalized,
+            parentSchema,
+            payload,
+          })
+        }
+      }
+      continue
+    }
+
+    // Recurse into arrays (have their own sub-document schema)
+    if (field.type === 'array') {
+      const arrayPath = parentSchema.path(field.name)
+      if (arrayPath && 'schema' in arrayPath) {
+        registerBlockReferenceDiscriminators({
+          fields: field.fields,
+          globalBlockSchemas,
+          parentIsLocalized: parentIsLocalized || (field.localized ?? false),
+          parentSchema: (arrayPath as any).schema,
+          payload,
+        })
+      }
+      continue
+    }
+
+    // Recurse into groups
+    if (field.type === 'group') {
+      if ('name' in field && field.name) {
+        // Named groups have their own sub-document schema
+        const groupPath = parentSchema.path(field.name)
+        if (groupPath && 'schema' in groupPath) {
+          registerBlockReferenceDiscriminators({
+            fields: field.fields,
+            globalBlockSchemas,
+            parentIsLocalized: parentIsLocalized || (field.localized ?? false),
+            parentSchema: (groupPath as any).schema,
+            payload,
+          })
+        }
+      } else {
+        // Unnamed groups are transparent
+        registerBlockReferenceDiscriminators({
+          fields: field.fields,
+          globalBlockSchemas,
+          parentIsLocalized,
+          parentSchema,
+          payload,
+        })
+      }
+      continue
+    }
+  }
 }
