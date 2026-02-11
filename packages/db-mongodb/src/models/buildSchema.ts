@@ -41,6 +41,21 @@ import {
 
 import type { MongooseAdapter } from '../index.js'
 
+/**
+ * Safely register a discriminator, ignoring "already exists" errors
+ * that occur during HMR in dev mode when schemas are rebuilt.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const safeDiscriminator = (target: any, name: string, schema: mongoose.Schema) => {
+  try {
+    target.discriminator(name, schema)
+  } catch (e: unknown) {
+    if (!(e instanceof Error && e.message.includes('already exists'))) {
+      throw e
+    }
+  }
+}
+
 export type BuildSchemaOptions = {
   allowIDField?: boolean
   disableUnique?: boolean
@@ -352,12 +367,10 @@ const blocks: FieldSchemaGenerator<BlocksField> = (
   blocksToAdd.forEach(({ slug, schema: blockSchema }) => {
     if (fieldShouldBeLocalized({ field, parentIsLocalized }) && payload.config.localization) {
       payload.config.localization.localeCodes.forEach((localeCode) => {
-        // @ts-expect-error Possible incorrect typing in mongoose types, this works
-        schema.path(`${field.name}.${localeCode}`).discriminator(slug, blockSchema)
+        safeDiscriminator(schema.path(`${field.name}.${localeCode}`), slug, blockSchema)
       })
     } else {
-      // @ts-expect-error Possible incorrect typing in mongoose types, this works
-      schema.path(field.name).discriminator(slug, blockSchema)
+      safeDiscriminator(schema.path(field.name), slug, blockSchema)
     }
   })
 }
@@ -1140,12 +1153,10 @@ function registerBlockReferenceDiscriminators({
       for (const { slug, schema } of blocksToRegister) {
         if (isLocalized && payload.config.localization) {
           payload.config.localization.localeCodes.forEach((localeCode) => {
-            // @ts-expect-error Possible incorrect typing in mongoose types, this works
-            parentSchema.path(`${field.name}.${localeCode}`).discriminator(slug, schema)
+            safeDiscriminator(parentSchema.path(`${field.name}.${localeCode}`), slug, schema)
           })
         } else {
-          // @ts-expect-error Possible incorrect typing in mongoose types, this works
-          parentSchema.path(field.name).discriminator(slug, schema)
+          safeDiscriminator(parentSchema.path(field.name), slug, schema)
         }
       }
       continue

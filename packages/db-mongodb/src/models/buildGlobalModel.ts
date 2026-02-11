@@ -4,7 +4,7 @@ import type { MongooseAdapter } from '../index.js'
 import type { GlobalModel } from '../types.js'
 
 import { getBuildQueryPlugin } from '../queries/getBuildQueryPlugin.js'
-import { buildSchema } from './buildSchema.js'
+import { buildSchema, safeDiscriminator } from './buildSchema.js'
 
 export const buildGlobalModel = (adapter: MongooseAdapter): GlobalModel | null => {
   if (adapter.payload.config.globals && adapter.payload.config.globals.length > 0) {
@@ -31,7 +31,7 @@ export const buildGlobalModel = (adapter: MongooseAdapter): GlobalModel | null =
         configFields: globalConfig.fields,
         payload: adapter.payload,
       })
-      Globals.discriminator(globalConfig.slug, globalSchema)
+      safeDiscriminator(Globals, globalConfig.slug, globalSchema)
     })
 
     return Globals
