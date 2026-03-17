@@ -1,5 +1,5 @@
 {
-  "name": "@payloadcms/db-mongodb",
+  "name": "@amc-digital-web-app/payload-db-mongodb",
   "version": "3.90.0",
   "description": "The officially supported MongoDB database adapter for Payload",
   "homepage": "https://payloadcms.com",

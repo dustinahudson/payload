@@ -1,5 +1,5 @@
 {
-  "name": "@payloadcms/ui",
+  "name": "@amc-digital-web-app/payload-ui",
   "version": "3.90.0",
   "homepage": "https://payloadcms.com",
   "repository": {
@@ -129,7 +129,7 @@
     "build:remove-artifact": "rm dist/prod/index.js",
     "build:swc": "swc ./src -d dist --config-file .swcrc --strip-leading-paths",
     "build:swc:debug": "swc ./src -d ./dist --config-file .swcrc-debug --strip-leading-paths",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:types": "cross-env NODE_OPTIONS='--max-old-space-size=16384' tsc --emitDeclarationOnly --outDir dist",
     "build:without_reactcompiler": "rm -rf dist && rm -rf tsconfig.tsbuildinfo && pnpm copyfiles && pnpm build:types && pnpm build:swc",
     "clean": "rimraf -g {dist,*.tsbuildinfo,esbuild}",
     "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json}\" dist/",

@@ -1,5 +1,5 @@
 {
-  "name": "@payloadcms/richtext-lexical",
+  "name": "@amc-digital-web-app/payload-richtext-lexical",
   "version": "3.90.0",
   "description": "The officially supported Lexical richtext adapter for Payload",
   "homepage": "https://payloadcms.com",

@@ -1,5 +1,5 @@
 {
-  "name": "payload",
+  "name": "@amc-digital-web-app/payload",
   "version": "3.90.0",
   "description": "Node, React, Headless CMS and Application Framework built on Next.js",
   "keywords": [
@@ -89,7 +89,7 @@
     "build:bundle-for-analysis": "node ./bundle.js esbuild",
     "build:debug": "pnpm build",
     "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:types": "cross-env NODE_OPTIONS='--max-old-space-size=16384' tsc --emitDeclarationOnly --outDir dist",
     "bundle:types": "rollup -c rollup.dts.config.mjs",
     "clean": "rimraf -g {dist,*.tsbuildinfo}",
     "clean:cache": "rimraf node_modules/.cache",
