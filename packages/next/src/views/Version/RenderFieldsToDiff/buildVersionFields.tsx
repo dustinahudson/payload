@@ -129,7 +129,7 @@ export const buildVersionFields = ({
 
   // Build set of global block slugs for lazy resolution
   const globalBlockSlugs = new Set<string>(
-    req.payload.config.blocks?.map((block) => block.slug) ?? [],
+    req?.payload?.config?.blocks?.map((block) => block.slug) ?? [],
   )
 
   for (const field of fields) {
